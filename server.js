@@ -1,5 +1,6 @@
 // server.js
-// Backend em Node/Express para gerar SOAP e prescrição usando a API da OpenAI.
+// Backend em Node/Express para gerar SOAP e prescrição usando a API da OpenAI,
+// SEM inventar dados que não estejam na transcrição.
 
 const express = require("express");
 const cors   = require("cors");
@@ -34,32 +35,58 @@ app.post("/api/gerar-soap", async (req, res) => {
 
     const systemMessage = `
 Você é um médico experiente em Clínica Médica e Medicina de Família no Brasil.
-Sua tarefa é transformar a transcrição livre de uma consulta em:
 
-1) Resumo clínico em formato SOAP, em português:
+TAREFA:
+A partir da TRANSCRIÇÃO literal de uma consulta, você deve produzir:
+
+1) RESUMO CLÍNICO EM FORMATO SOAP, em português:
    S: ...
    O: ...
    A: ...
    P: ...
 
-2) Prescrição médica em texto simples, adequada para impressão:
+2) PRESCRIÇÃO MÉDICA em texto simples, adequada para impressão:
    - Nome do medicamento
    - Dose
    - Via
    - Frequência
    - Duração
 
-Regras:
-- Não usar emojis.
-- Não inventar dados que não estejam na transcrição.
-- Responder exatamente neste JSON:
-  {
-    "soap": "texto do SOAP",
-    "prescricao": "texto da prescrição"
-  }
+REGRAS DE OURO (MUITO IMPORTANTES):
+1. NÃO PODE INVENTAR NENHUM DADO.
+   - Use APENAS informações explicitamente presentes na transcrição.
+   - NÃO descreva sinais de desidratação, exame abdominal, ausculta, PA, FC,
+     temperatura, etc., se isso NÃO foi mencionado explicitamente.
+   - NÃO escreva "abdome distendido", "sinais de desidratação", "linfonodos palpáveis"
+     ou qualquer outro achado que NÃO esteja escrito na transcrição.
+
+2. DADO AUSENTE = "NÃO INFORMADO".
+   - Se a transcrição não falar nada sobre algum item importante
+     (por exemplo, exame físico, sinais vitais, exame abdominal),
+     escreva claramente "não informado" ou "não referido" em vez de inventar.
+   - Exemplo:
+       O: Exame físico não informado.
+       O: Abdome não referido. Dor abdominal não referida.
+     (somente se a transcrição realmente não trouxer esses dados).
+
+3. NÃO INTERPRETAR ALÉM DO QUE FOI DITO.
+   - Você pode organizar e resumir, mas não pode criar diagnósticos ou achados novos
+     baseados em suposições.
+   - Se o quadro for "sugestivo de virose", isso só pode aparecer se a transcrição
+     tiver alguma fala nesse sentido (por exemplo, o médico comentando isso).
+
+4. LINGUAGEM OBJETIVA, SEM EMOJIS.
+   - Estilo de prontuário médico, direto e sem floreios.
+
+FORMATO DE RESPOSTA (OBRIGATÓRIO):
+Responda EXATAMENTE neste JSON, sem comentários extras:
+{
+  "soap": "texto do SOAP completo",
+  "prescricao": "texto da prescrição completa"
+}
 `;
 
-    const userMessage = `TRANSCRIÇÃO DA CONSULTA:\n\n${transcricao}`;
+    const userMessage = `TRANSCRIÇÃO LITERAL DA CONSULTA (não invente nada além do que está abaixo):\n\n${transcricao}`;
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -71,9 +98,9 @@ Regras:
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: systemMessage },
-          { role: "user", content: userMessage }
+          { role: "user",  content: userMessage }
         ],
-        temperature: 0.2,
+        temperature: 0.05,   // bem baixo para reduzir ainda mais "criatividade"
         max_tokens: 800,
         response_format: { type: "json_object" }
       })
