@@ -154,6 +154,23 @@
       66% { content: ".."; }
       100% { content: "..."; }
     }
+    /* botões "não informado" dentro do SOAP */
+    .missing-btn {
+      border-radius: 12px;
+      border: 1px solid #b00020;
+      background: #fff0f0;
+      color: #b00020;
+      font-size: 12px;
+      padding: 2px 6px;
+      cursor: pointer;
+      display: inline-block;
+      margin: 0 2px;
+    }
+    .missing-explainer {
+      font-size: 12px;
+      color: #555;
+      margin-top: 8px;
+    }
     @media (max-width: 480px) {
       #recordBtn {
         width: 150px;
@@ -177,7 +194,9 @@
       #finishHint,
       #micStatus,
       #timer,
-      #pauseLabel {
+      #pauseLabel,
+      .missing-explainer,
+      .missing-btn {
         display: none !important;
       }
       #printArea {
@@ -210,6 +229,9 @@
     <div id="resultsCard" class="results-card hidden">
       <h2>Resumo SOAP</h2>
       <pre id="soapOutput"></pre>
+      <div class="missing-explainer" id="missingExplainer" style="display:none;">
+        Campos marcados como <strong>não informado</strong> aparecem como botões. Clique para perguntar ao paciente e atualizar o resumo automaticamente.
+      </div>
 
       <h2>Prescrição</h2>
       <pre id="prescriptionOutput"></pre>
@@ -231,9 +253,11 @@
     let isRecording = false;
     let isPaused = false;
     let finalTranscript = "";
+    let baseTranscript = "";
     let timerInterval = null;
     let startTime = null;
     let accumulatedSeconds = 0;
+    let currentSoapRaw = "";
 
     const recordBtn = document.getElementById("recordBtn");
     const pauseBtn = document.getElementById("pauseBtn");
@@ -246,6 +270,7 @@
     const printBtn = document.getElementById("printBtn");
     const prescricaoPrint = document.getElementById("prescricaoPrint");
     const printArea = document.getElementById("printArea");
+    const missingExplainer = document.getElementById("missingExplainer");
 
     function initSpeech() {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -269,7 +294,7 @@
             interim += t;
           }
         }
-        // NÃO mostramos a transcrição na tela – fica só em memória (finalTranscript)
+        // NÃO mostramos a transcrição na tela – fica apenas em memória.
       };
 
       recognition.onerror = (e) => {
@@ -277,7 +302,7 @@
       };
 
       recognition.onend = () => {
-        // Quando termina sozinho e ainda está em gravação e não está pausado, tentamos retomar.
+        // Se terminou sozinho mas a consulta ainda está ativa e não está pausada, tenta retomar.
         if (isRecording && !isPaused) {
           try {
             recognition.start();
@@ -324,6 +349,7 @@
       if (!recognition) return;
 
       finalTranscript = "";
+      baseTranscript = "";
       isRecording = true;
       isPaused = false;
       pauseBtn.style.display = "inline-block";
@@ -332,6 +358,7 @@
       recordBtn.innerText = "Encerrar consulta";
       micStatus.innerText = "Gravando consulta...";
       soapError.textContent = "";
+      resultsCard.classList.add("hidden");
 
       resetTimer();
       startTimer();
@@ -385,18 +412,21 @@
       }
 
       micStatus.innerText = "Gerando resumo SOAP e prescrição...";
+      micStatus.classList.add("loading-dot");
       soapOutput.textContent = "";
       prescriptionOutput.textContent = "";
       resultsCard.classList.remove("hidden");
       printBtn.style.display = "none";
       soapError.textContent = "";
-      micStatus.classList.add("loading-dot");
+      missingExplainer.style.display = "none";
+
+      baseTranscript = finalTranscript; // guarda a transcrição base
 
       try {
         const resp = await fetch(BACKEND_URL + "/api/gerar-soap", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transcricao: finalTranscript })
+          body: JSON.stringify({ transcricao: baseTranscript })
         });
 
         if (!resp.ok) {
@@ -413,7 +443,8 @@
         const soap = data.soap || "Nenhum texto de SOAP retornado.";
         const prescricao = data.prescricao || "Nenhum texto de prescrição retornado.";
 
-        soapOutput.textContent = soap;
+        currentSoapRaw = soap;
+        renderSoapWithMissing(currentSoapRaw);
         prescriptionOutput.textContent = prescricao;
         prescricaoPrint.textContent = prescricao;
         printBtn.style.display = "inline-block";
@@ -425,6 +456,166 @@
         soapError.textContent =
           "Erro ao gerar SOAP e prescrição (falha de rede ou backend).";
         micStatus.innerText = "Falha ao gerar o resumo.";
+        micStatus.classList.remove("loading-dot");
+      }
+    }
+
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    // transforma "não informado" em botões clicáveis dentro do SOAP
+    function renderSoapWithMissing(soapText) {
+      const pattern = /não informado/gi;
+      let lastIndex = 0;
+      let match;
+      let html = "";
+      let foundMissing = false;
+
+      while ((match = pattern.exec(soapText)) !== null) {
+        const before = soapText.slice(lastIndex, match.index);
+        html += escapeHtml(before);
+
+        // contexto anterior para ajudar a IA a entender qual campo está sendo complementado
+        const contextStart = Math.max(0, match.index - 60);
+        const context = soapText.slice(contextStart, match.index).trim();
+
+        html += `<button class="missing-btn" data-context="${escapeHtml(
+          context
+        )}">não informado</button>`;
+
+        lastIndex = match.index + match[0].length;
+        foundMissing = true;
+      }
+
+      html += escapeHtml(soapText.slice(lastIndex));
+
+      soapOutput.innerHTML = html;
+
+      if (foundMissing) {
+        missingExplainer.style.display = "block";
+      } else {
+        missingExplainer.style.display = "none";
+      }
+    }
+
+    // captura informação adicional por voz (ou texto digitado, se sem suporte de voz)
+    function captureAdditionalInfo() {
+      return new Promise((resolve) => {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+          const manual = prompt(
+            "Seu navegador não suporta voz. Digite a informação adicional:"
+          );
+          resolve(manual ? manual.trim() : "");
+          return;
+        }
+
+        const rec = new SR();
+        rec.lang = "pt-BR";
+        rec.continuous = false;
+        rec.interimResults = true;
+
+        let finalText = "";
+        let interim = "";
+
+        rec.onresult = (e) => {
+          interim = "";
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const t = e.results[i][0].transcript;
+            if (e.results[i].isFinal) {
+              finalText += t + " ";
+            } else {
+              interim += t;
+            }
+          }
+        };
+
+        rec.onerror = (e) => {
+          console.error("Erro em captura adicional:", e.error);
+          try { rec.stop(); } catch (err) {}
+          resolve((finalText + " " + interim).trim());
+        };
+
+        rec.onend = () => {
+          resolve((finalText + " " + interim).trim());
+        };
+
+        try {
+          rec.start();
+        } catch (err) {
+          console.error("Erro ao iniciar captura adicional:", err);
+          resolve("");
+        }
+      });
+    }
+
+    async function handleMissingClick(contextSnippet) {
+      soapError.textContent = "";
+      micStatus.innerText =
+        "Gravando complemento para: " +
+        (contextSnippet || "campo não informado") +
+        ". Pergunte ao paciente e aguarde a resposta.";
+      micStatus.classList.add("loading-dot");
+
+      const extra = await captureAdditionalInfo();
+
+      if (!extra) {
+        micStatus.innerText = "Nenhuma informação adicional capturada.";
+        micStatus.classList.remove("loading-dot");
+        return;
+      }
+
+      // adiciona informação complementar à transcrição base
+      finalTranscript =
+        (baseTranscript || "") +
+        `\n\nINFORMAÇÃO ADICIONAL SOBRE: ${contextSnippet || "campo não informado"}\nRESPOSTA do paciente/médico: ${extra}\n`;
+      baseTranscript = finalTranscript;
+
+      micStatus.innerText = "Atualizando resumo SOAP com a nova informação...";
+      micStatus.classList.add("loading-dot");
+
+      try {
+        const resp = await fetch(BACKEND_URL + "/api/gerar-soap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcricao: finalTranscript })
+        });
+
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => "");
+          console.error("Erro HTTP do backend (complemento):", resp.status, txt);
+          soapError.textContent =
+            "Erro ao atualizar o SOAP com a informação adicional.";
+          micStatus.innerText = "Falha ao atualizar o resumo.";
+          micStatus.classList.remove("loading-dot");
+          return;
+        }
+
+        const data = await resp.json();
+        const soap = data.soap || "";
+        const prescricao = data.prescricao || "";
+
+        currentSoapRaw = soap;
+        renderSoapWithMissing(currentSoapRaw);
+
+        if (prescricao) {
+          prescriptionOutput.textContent = prescricao;
+          prescricaoPrint.textContent = prescricao;
+          printBtn.style.display = "inline-block";
+        }
+
+        micStatus.innerText =
+          "Resumo SOAP atualizado com a nova informação.";
+        micStatus.classList.remove("loading-dot");
+      } catch (err) {
+        console.error(err);
+        soapError.textContent =
+          "Erro ao atualizar SOAP e prescrição com a informação adicional.";
+        micStatus.innerText = "Falha ao atualizar o resumo.";
         micStatus.classList.remove("loading-dot");
       }
     }
@@ -460,6 +651,15 @@
         printArea.classList.add("hidden");
       }, 500);
     };
+
+    // clique nos botões "não informado" dentro do SOAP
+    soapOutput.addEventListener("click", (e) => {
+      const target = e.target;
+      if (target && target.classList.contains("missing-btn")) {
+        const context = target.getAttribute("data-context") || "";
+        handleMissingClick(context);
+      }
+    });
   </script>
 </body>
 </html>
