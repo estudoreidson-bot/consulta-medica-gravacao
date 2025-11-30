@@ -1,135 +1,254 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<title>Gravar Consulta Médica</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<style>
-body{font-family:Arial;margin:0;background:#f5f5f5;padding:20px;}
-#recordBtn{width:150px;height:150px;border-radius:50%;border:none;color:#fff;font-size:20px;cursor:pointer;}
-#recordBtn.start{background:#28a745;}
-#recordBtn.stop{background:#dc3545;}
-textarea{width:100%;height:150px;margin-top:20px;}
-.section{margin-top:30px;padding:20px;background:#fff;border-radius:10px;}
-</style>
+  <meta charset="UTF-8" />
+  <title>Gravar Consulta Médica</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h1 {
+      margin-top: 0;
+    }
+    .section {
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    #recordBtn {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      border: none;
+      color: #ffffff;
+      font-size: 20px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #recordBtn.start {
+      background: #28a745;
+    }
+    #recordBtn.stop {
+      background: #dc3545;
+    }
+    #timer {
+      font-size: 24px;
+      margin-top: 15px;
+    }
+    #micStatus {
+      margin-top: 10px;
+      color: #666;
+    }
+    textarea {
+      width: 100%;
+      height: 180px;
+      margin-top: 20px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      padding: 8px;
+      font-size: 14px;
+      resize: vertical;
+    }
+    pre {
+      white-space: pre-wrap;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      background: #fafafa;
+      min-height: 100px;
+    }
+    button.small-btn {
+      margin-top: 10px;
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: none;
+      cursor: pointer;
+      background: #0c5460;
+      color: #fff;
+      font-size: 14px;
+    }
+    button.small-btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    .error {
+      color: #b00020;
+      margin-top: 8px;
+      font-size: 13px;
+    }
+  </style>
 </head>
 <body>
 
-<h1>Gravação de Consulta Médica</h1>
+  <h1>Gravação de Consulta Médica</h1>
 
-<div class="section">
-<button id="recordBtn" class="start">Iniciar</button>
-<div id="timer" style="font-size:24px;margin-top:15px;">00:00</div>
-<div id="micStatus" style="margin-top:10px;color:#666;">Aguardando...</div>
+  <div class="section">
+    <button id="recordBtn" class="start">Iniciar</button>
+    <div id="timer">00:00</div>
+    <div id="micStatus">Aguardando...</div>
 
-<textarea id="transcript" placeholder="Transcrição aparecerá aqui"></textarea>
-</div>
+    <textarea id="transcript" placeholder="A transcrição da consulta aparecerá aqui. Você pode editar o texto livremente."></textarea>
+  </div>
 
-<div class="section">
-<h2>Resumo SOAP</h2>
-<pre id="soapOutput" style="white-space:pre-wrap;"></pre>
-<button id="generateSoapBtn">Gerar SOAP e Prescrição</button>
-</div>
+  <div class="section">
+    <h2>Resumo SOAP</h2>
+    <pre id="soapOutput"></pre>
+    <button class="small-btn" id="generateSoapBtn">Gerar SOAP e Prescrição</button>
+    <div id="soapError" class="error"></div>
+  </div>
 
-<div class="section">
-<h2>Prescrição</h2>
-<pre id="prescriptionOutput" style="white-space:pre-wrap;"></pre>
-<button id="printBtn">Imprimir PDF</button>
-</div>
+  <div class="section">
+    <h2>Prescrição</h2>
+    <pre id="prescriptionOutput"></pre>
+    <button class="small-btn" id="printBtn">Imprimir em PDF</button>
+  </div>
 
-<div id="area-impressao" style="display:none;">
-<h2>Prescrição médica</h2>
-<pre id="prescricaoImpressao"></pre>
-</div>
+  <!-- Área usada na impressão -->
+  <div id="area-impressao" style="display:none;">
+    <h2>Prescrição médica</h2>
+    <pre id="prescricaoImpressao"></pre>
+  </div>
 
-<script>
-let isRecording=false;
-let recognition;
-let finalTranscript="";
-let timerInterval;
-let startTime;
+  <script>
+    let isRecording = false;
+    let recognition;
+    let finalTranscript = "";
+    let timerInterval;
+    let startTime;
 
-function initSpeech(){
- const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
- if(!SR){document.getElementById("micStatus").innerText="Navegador não suporta voz.";return;}
- recognition=new SR();
- recognition.lang="pt-BR";
- recognition.continuous=true;
- recognition.interimResults=true;
+    function initSpeech() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        document.getElementById("micStatus").innerText =
+          "Seu navegador não suporta reconhecimento de voz. Use Google Chrome em um computador.";
+        return;
+      }
+      recognition = new SR();
+      recognition.lang = "pt-BR";
+      recognition.continuous = true;
+      recognition.interimResults = true;
 
- recognition.onresult=e=>{
-   let interim="";
-   for(let i=e.resultIndex;i<e.results.length;i++){
-     const t=e.results[i][0].transcript;
-     if(e.results[i].isFinal){finalTranscript+=t+" ";}
-     else{interim+=t;}
-   }
- document.getElementById("transcript").value=(finalTranscript+" "+interim).trim();
- };
+      recognition.onresult = (e) => {
+        let interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) {
+            finalTranscript += t + " ";
+          } else {
+            interim += t;
+          }
+        }
+        document.getElementById("transcript").value = (finalTranscript + " " + interim).trim();
+      };
 
- recognition.onerror=e=>{document.getElementById("micStatus").innerText="Erro: "+e.error;}
-}
+      recognition.onerror = (e) => {
+        document.getElementById("micStatus").innerText = "Erro no reconhecimento de voz: " + e.error;
+      };
+    }
 
-function startTimer(){
- startTime=Date.now();
- timerInterval=setInterval(()=>{
-   const s=Math.floor((Date.now()-startTime)/1000);
-   const m=("0"+Math.floor(s/60)).slice(-2);
-   const ss=("0"+(s%60)).slice(-2);
-   document.getElementById("timer").innerText=`${m}:${ss}`;
- },500);
-}
+    function startTimer() {
+      startTime = Date.now();
+      timerInterval = setInterval(() => {
+        const s = Math.floor((Date.now() - startTime) / 1000);
+        const m = ("0" + Math.floor(s / 60)).slice(-2);
+        const ss = ("0" + (s % 60)).slice(-2);
+        document.getElementById("timer").innerText = m + ":" + ss;
+      }, 500);
+    }
 
-function stopTimer(){clearInterval(timerInterval);}
+    function stopTimer() {
+      clearInterval(timerInterval);
+    }
 
-document.getElementById("recordBtn").onclick=()=>{
- if(!recognition) initSpeech();
- if(!recognition) return;
+    document.getElementById("recordBtn").onclick = () => {
+      if (!recognition) initSpeech();
+      if (!recognition) return;
 
- if(!isRecording){
-   finalTranscript=document.getElementById("transcript").value+" ";
-   recognition.start();
-   isRecording=true;
-   document.getElementById("micStatus").innerText="Gravando...";
-   document.getElementById("recordBtn").className="stop";
-   document.getElementById("recordBtn").innerText="Parar";
-   startTimer();
- } else {
-   recognition.stop();
-   isRecording=false;
-   document.getElementById("micStatus").innerText="Parado.";
-   document.getElementById("recordBtn").className="start";
-   document.getElementById("recordBtn").innerText="Iniciar";
-   stopTimer();
- }
-};
+      if (!isRecording) {
+        finalTranscript = document.getElementById("transcript").value + " ";
+        recognition.start();
+        isRecording = true;
+        document.getElementById("micStatus").innerText = "Gravando...";
+        document.getElementById("recordBtn").className = "stop";
+        document.getElementById("recordBtn").innerText = "Parar";
+        startTimer();
+      } else {
+        recognition.stop();
+        isRecording = false;
+        document.getElementById("micStatus").innerText = "Parado.";
+        document.getElementById("recordBtn").className = "start";
+        document.getElementById("recordBtn").innerText = "Iniciar";
+        stopTimer();
+      }
+    };
 
-document.getElementById("generateSoapBtn").onclick=async()=>{
- const text=document.getElementById("transcript").value.trim();
- if(!text){alert("Transcrição vazia.");return;}
+    async function gerarSoapEPrescricao() {
+      const transcript = document.getElementById("transcript").value.trim();
+      const soapOutput = document.getElementById("soapOutput");
+      const prescriptionOutput = document.getElementById("prescriptionOutput");
+      const soapError = document.getElementById("soapError");
+      const printArea = document.getElementById("prescricaoImpressao");
+      const btn = document.getElementById("generateSoapBtn");
 
- document.getElementById("soapOutput").innerText="Gerando...";
- document.getElementById("prescriptionOutput").innerText="";
+      soapError.textContent = "";
+      if (!transcript) {
+        soapError.textContent = "Preencha ou grave a transcrição antes de gerar o SOAP.";
+        return;
+      }
 
- try{
-   const r=await fetch("https://SEU_BACKEND.onrender.com/api/gerar-soap",{
-     method:"POST",
-     headers:{"Content-Type":"application/json"},
-     body:JSON.stringify({transcricao:text})
-   });
-   const data=await r.json();
-   document.getElementById("soapOutput").innerText=data.soap||"Sem retorno";
-   document.getElementById("prescriptionOutput").innerText=data.prescricao||"Sem retorno";
-   document.getElementById("prescricaoImpressao").innerText=data.prescricao||"";
- }catch(e){
-   document.getElementById("soapOutput").innerText="Erro.";
- }
-};
+      soapOutput.textContent = "Gerando SOAP e prescrição. Aguarde...";
+      prescriptionOutput.textContent = "";
+      btn.disabled = true;
 
-document.getElementById("printBtn").onclick=()=>{
- window.print();
-};
-</script>
+      try {
+        const resp = await fetch("https://consulta-medica-gravacao.onrender.com/api/gerar-soap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcricao: transcript })
+        });
 
+        if (!resp.ok) {
+          const txt = await resp.text();
+          console.error("Erro HTTP:", resp.status, txt);
+          soapOutput.textContent = "";
+          soapError.textContent = "Erro ao comunicar com o servidor. Verifique o backend no Render.";
+          btn.disabled = false;
+          return;
+        }
+
+        const data = await resp.json();
+        const soap = data.soap || "Nenhum texto de SOAP retornado.";
+        const prescricao = data.prescricao || "Nenhum texto de prescrição retornado.";
+
+        soapOutput.textContent = soap;
+        prescriptionOutput.textContent = prescricao;
+        printArea.textContent = prescricao;
+      } catch (e) {
+        console.error(e);
+        soapOutput.textContent = "";
+        soapError.textContent = "Erro ao gerar SOAP e prescrição (falha de rede ou backend).";
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById("generateSoapBtn").onclick = gerarSoapEPrescricao;
+
+    document.getElementById("printBtn").onclick = () => {
+      const presc = document.getElementById("prescriptionOutput").textContent.trim();
+      if (!presc) {
+        alert("Não há prescrição para imprimir.");
+        return;
+      }
+      document.getElementById("prescricaoImpressao").textContent = presc;
+      window.print();
+    };
+  </script>
 </body>
 </html>
