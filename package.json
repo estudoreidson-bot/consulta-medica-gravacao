@@ -1,0 +1,17 @@
+{
+  "name": "consulta-medica-gravacao",
+  "version": "1.0.0",
+  "description": "Backend para gerar SOAP e prescrição a partir de transcrição de consulta.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
