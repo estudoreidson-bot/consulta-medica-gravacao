@@ -1,7 +1,7 @@
 {
   "name": "consulta-medica-gravacao",
   "version": "1.0.0",
-  "description": "Backend para gerar SOAP e prescrição a partir de transcrição de consulta.",
+  "description": "Backend para gerar SOAP e prescrição a partir da transcrição de consultas médicas.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
