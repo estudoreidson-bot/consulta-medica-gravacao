@@ -133,7 +133,7 @@
       background: #0c5460;
       color: #fff;
       font-size: 14px;
-      display: none; /* só aparece depois que a prescrição estiver pronta */
+      display: none;
     }
     .error {
       color: #b00020;
@@ -151,7 +151,6 @@
       66% { content: ".."; }
       100% { content: "..."; }
     }
-    /* botões "não informado" dentro do SOAP */
     .missing-btn {
       border-radius: 12px;
       border: 1px solid #b00020;
@@ -260,7 +259,7 @@
         font-size: 18px;
       }
     }
-    /* área de impressão */
+
     @media print {
       body {
         background: #ffffff;
@@ -317,7 +316,6 @@
       <button id="recommendationsBtn">Recomendações de perguntas</button>
     </div>
 
-    <!-- Área usada para impressão somente da prescrição -->
     <div id="printArea" class="hidden">
       <h2>Prescrição</h2>
       <pre id="prescricaoPrint"></pre>
@@ -672,22 +670,12 @@
         return;
       }
 
-      if (!recommendationsPanel) {
-        return;
-      }
-
       recommendationsPanel.classList.add("visible");
-      if (recommendationsStatus) {
-        recommendationsStatus.textContent =
-          "Gerando perguntas complementares essenciais com base na queixa e no SOAP...";
-        recommendationsStatus.classList.add("loading-dot");
-      }
-      if (recommendationsList) {
-        recommendationsList.innerHTML = "";
-      }
-      if (askQuestionsBtn) {
-        askQuestionsBtn.disabled = true;
-      }
+      recommendationsStatus.textContent =
+        "Gerando perguntas complementares essenciais com base na queixa e no SOAP...";
+      recommendationsStatus.classList.add("loading-dot");
+      recommendationsList.innerHTML = "";
+      askQuestionsBtn.disabled = true;
 
       try {
         const resp = await fetch(BACKEND_URL + "/api/recomendacoes-anamnese", {
@@ -705,11 +693,9 @@
             resp.status,
             txt
           );
-          if (recommendationsStatus) {
-            recommendationsStatus.textContent =
-              "Não foi possível gerar as recomendações de perguntas.";
-            recommendationsStatus.classList.remove("loading-dot");
-          }
+          recommendationsStatus.textContent =
+            "Não foi possível gerar as recomendações de perguntas.";
+          recommendationsStatus.classList.remove("loading-dot");
           return;
         }
 
@@ -717,40 +703,29 @@
         const perguntas = Array.isArray(data.perguntas) ? data.perguntas : [];
 
         if (!perguntas.length) {
-          if (recommendationsStatus) {
-            recommendationsStatus.textContent =
-              "Nenhuma pergunta complementar foi sugerida para este caso.";
-            recommendationsStatus.classList.remove("loading-dot");
-          }
+          recommendationsStatus.textContent =
+            "Nenhuma pergunta complementar foi sugerida para este caso.";
+          recommendationsStatus.classList.remove("loading-dot");
           return;
         }
 
-        if (recommendationsList) {
-          recommendationsList.innerHTML = "";
-          perguntas.forEach((q, index) => {
-            const item = document.createElement("div");
-            item.className = "recommendation-item";
-            item.textContent = (index + 1) + ". " + q;
-            recommendationsList.appendChild(item);
-          });
-        }
+        recommendationsList.innerHTML = "";
+        perguntas.forEach((q, index) => {
+          const item = document.createElement("div");
+          item.className = "recommendation-item";
+          item.textContent = (index + 1) + ". " + q;
+          recommendationsList.appendChild(item);
+        });
 
-        if (recommendationsStatus) {
-          recommendationsStatus.textContent =
-            "Use estas perguntas para aprofundar a anamnese com o paciente.";
-          recommendationsStatus.classList.remove("loading-dot");
-        }
-
-        if (askQuestionsBtn) {
-          askQuestionsBtn.disabled = false;
-        }
+        recommendationsStatus.textContent =
+          "Use estas perguntas para aprofundar a anamnese com o paciente.";
+        recommendationsStatus.classList.remove("loading-dot");
+        askQuestionsBtn.disabled = false;
       } catch (err) {
         console.error("Erro geral ao buscar recomendações:", err);
-        if (recommendationsStatus) {
-          recommendationsStatus.textContent =
-            "Erro ao gerar recomendações de perguntas.";
-          recommendationsStatus.classList.remove("loading-dot");
-        }
+        recommendationsStatus.textContent =
+          "Erro ao gerar recomendações de perguntas.";
+        recommendationsStatus.classList.remove("loading-dot");
       }
     }
 
@@ -830,9 +805,7 @@
         micStatus.innerText = "Falha ao atualizar o resumo.";
         micStatus.classList.remove("loading-dot");
       } finally {
-        if (recommendationsPanel) {
-          recommendationsPanel.classList.remove("visible");
-        }
+        recommendationsPanel.classList.remove("visible");
       }
     }
 
@@ -950,25 +923,18 @@
       }, 500);
     };
 
-    if (recommendationsBtn) {
-      recommendationsBtn.addEventListener("click", () => {
-        fetchRecommendations();
-      });
-    }
+    recommendationsBtn.addEventListener("click", () => {
+      fetchRecommendations();
+    });
 
-    if (closeRecommendationsBtn) {
-      closeRecommendationsBtn.addEventListener("click", () => {
-        recommendationsPanel.classList.remove("visible");
-      });
-    }
+    closeRecommendationsBtn.addEventListener("click", () => {
+      recommendationsPanel.classList.remove("visible");
+    });
 
-    if (askQuestionsBtn) {
-      askQuestionsBtn.addEventListener("click", () => {
-        handleAskQuestionsFromPanel();
-      });
-    }
+    askQuestionsBtn.addEventListener("click", () => {
+      handleAskQuestionsFromPanel();
+    });
 
-    // clique nos botões "não informado" dentro do SOAP
     soapOutput.addEventListener("click", (e) => {
       const target = e.target;
       if (target && target.classList.contains("missing-btn")) {
