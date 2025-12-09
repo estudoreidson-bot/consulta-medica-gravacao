@@ -115,42 +115,25 @@
     .results-card h2 {
       margin-top: 0;
     }
-    pre {
-      white-space: pre-wrap;
-      padding: 10px;
-      border-radius: 6px;
+
+    /* SOAP em blocos S / O / A / P */
+    #soapOutput {
+      margin: 0;
+    }
+    .soap-section {
       border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
       background: #fafafa;
-      min-height: 80px;
       font-size: 14px;
+      white-space: pre-wrap;
     }
-    #printBtn {
-      margin-top: 12px;
-      padding: 8px 18px;
-      border-radius: 20px;
-      border: none;
-      cursor: pointer;
-      background: #0c5460;
-      color: #fff;
-      font-size: 14px;
-      display: none;
+    .soap-section-title {
+      font-weight: bold;
+      margin-bottom: 4px;
     }
-    .error {
-      color: #b00020;
-      margin-top: 8px;
-      font-size: 13px;
-      text-align: center;
-    }
-    .loading-dot::after {
-      content: "...";
-      animation: dots 1s steps(3, end) infinite;
-    }
-    @keyframes dots {
-      0% { content: ""; }
-      33% { content: "."; }
-      66% { content: ".."; }
-      100% { content: "..."; }
-    }
+
     .missing-btn {
       border-radius: 12px;
       border: 1px solid #b00020;
@@ -166,6 +149,66 @@
       font-size: 12px;
       color: #555;
       margin-top: 8px;
+    }
+
+    /* Prescrição editável */
+    .patient-name-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .patient-name-row label {
+      font-weight: bold;
+    }
+    #patientNameInput {
+      flex: 1;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    .prescription-area {
+      width: 100%;
+      min-height: 120px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      padding: 10px;
+      resize: vertical;
+      font-size: 14px;
+      font-family: inherit;
+      white-space: pre-wrap;
+    }
+
+    #printBtn {
+      margin-top: 12px;
+      padding: 8px 18px;
+      border-radius: 20px;
+      border: none;
+      cursor: pointer;
+      background: #0c5460;
+      color: #fff;
+      font-size: 14px;
+      display: none;
+    }
+
+    .error {
+      color: #b00020;
+      margin-top: 8px;
+      font-size: 13px;
+      text-align: center;
+    }
+    .loading-dot::after {
+      content: "...";
+      animation: dots 1s steps(3, end) infinite;
+    }
+    @keyframes dots {
+      0% { content: ""; }
+      33% { content: "."; }
+      66% { content: ".."; }
+      100% { content: "..."; }
     }
 
     /* Painel lateral de recomendações */
@@ -273,6 +316,9 @@
     }
     #printArea {
       display: none;
+      white-space: pre-wrap;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 14px;
     }
     .hidden {
       display: none !important;
@@ -303,23 +349,26 @@
 
     <div id="resultsCard" class="results-card hidden">
       <h2>Resumo SOAP</h2>
-      <pre id="soapOutput"></pre>
+      <div id="soapOutput"></div>
       <div class="missing-explainer" id="missingExplainer" style="display:none;">
         Campos marcados como <strong>não informado</strong> aparecem com um botão.
         Clique nesses botões para perguntar ao paciente e atualizar o resumo automaticamente.
       </div>
 
       <h2>Prescrição</h2>
-      <pre id="prescriptionOutput"></pre>
+
+      <div class="patient-name-row">
+        <label for="patientNameInput">Paciente:</label>
+        <input id="patientNameInput" type="text" placeholder="Nome completo do paciente" />
+      </div>
+
+      <textarea id="prescriptionOutput" class="prescription-area"></textarea>
 
       <button id="printBtn">Imprimir prescrição</button>
       <button id="recommendationsBtn">Recomendações de perguntas</button>
     </div>
 
-    <div id="printArea" class="hidden">
-      <h2>Prescrição</h2>
-      <pre id="prescricaoPrint"></pre>
-    </div>
+    <div id="printArea" class="hidden"></div>
   </div>
 
   <!-- Painel lateral de recomendações -->
@@ -352,7 +401,7 @@
     let accumulatedSeconds = 0;
     let currentSoapRaw = "";
 
-    // Controle da sessão de perguntas essenciais
+    // Sessão de perguntas essenciais
     let isAskingQuestions = false;
     let questionsRecognition = null;
     let questionsTranscript = "";
@@ -366,10 +415,10 @@
     const micStatus = document.getElementById("micStatus");
     const soapOutput = document.getElementById("soapOutput");
     const prescriptionOutput = document.getElementById("prescriptionOutput");
+    const patientNameInput = document.getElementById("patientNameInput");
     const resultsCard = document.getElementById("resultsCard");
     const soapError = document.getElementById("soapError");
     const printBtn = document.getElementById("printBtn");
-    const prescricaoPrint = document.getElementById("prescricaoPrint");
     const printArea = document.getElementById("printArea");
     const missingExplainer = document.getElementById("missingExplainer");
 
@@ -453,6 +502,22 @@
       timerEl.innerText = "00:00";
     }
 
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function formatPrescriptionLines(text) {
+      if (!text) return "";
+      let t = text.replace(/\r\n/g, "\n");
+      // força quebra antes de "n." (1., 2., 3., etc.)
+      t = t.replace(/(\d+\.)/g, "\n$1");
+      t = t.replace(/^\s*\n+/, "");
+      return t.trim();
+    }
+
     async function finalizarConsulta() {
       soapError.textContent = "";
       micStatus.innerText = "Gerando resumo SOAP e prescrição com base na gravação...";
@@ -497,13 +562,14 @@
 
         const data = await resp.json();
         const soap = data.soap || "Nenhum texto de SOAP retornado.";
-        const prescricao = data.prescricao || "Nenhum texto de prescrição retornado.";
+        const prescricao = data.prescricao || "";
 
         currentSoapRaw = soap;
         renderSoapWithMissing(currentSoapRaw);
-        prescriptionOutput.textContent = prescricao;
-        prescricaoPrint.textContent = prescricao;
-        printBtn.style.display = "inline-block";
+
+        const formattedPresc = formatPrescriptionLines(prescricao);
+        prescriptionOutput.value = formattedPresc;
+        printBtn.style.display = formattedPresc ? "inline-block" : "none";
 
         micStatus.innerText = "Consulta encerrada. Resumo e prescrição gerados.";
         micStatus.classList.remove("loading-dot");
@@ -516,13 +582,6 @@
       }
     }
 
-    function escapeHtml(text) {
-      return text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-    }
-
     function renderSoapWithMissing(soapText) {
       if (!soapText) {
         soapOutput.textContent = "";
@@ -531,19 +590,58 @@
       }
 
       let indexCounter = 0;
-      const replaced = soapText.replace(/não informado/gi, () => {
-        indexCounter++;
-        const contextSnippet = "campo " + indexCounter;
-        return (
-          '<button class="missing-btn" data-context="' +
-          escapeHtml(contextSnippet) +
-          '">não informado</button>'
-        );
-      });
 
-      soapOutput.innerHTML = replaced;
+      function applyMissing(text) {
+        let safe = escapeHtml(text);
+        safe = safe.replace(/não informado/gi, (match) => {
+          indexCounter++;
+          const contextSnippet = "campo " + indexCounter;
+          return (
+            '<button class="missing-btn" data-context="' +
+            escapeHtml(contextSnippet) +
+            '">não informado</button>'
+          );
+        });
+        return safe;
+      }
+
+      const sections = { S: "", O: "", A: "", P: "" };
+      const regex = /([SOAP]):\s*([\s\S]*?)(?=(?:S:|O:|A:|P:|$))/g;
+      let m;
+      while ((m = regex.exec(soapText)) !== null) {
+        const letra = m[1];
+        const conteudo = m[2].trim();
+        sections[letra] = conteudo;
+      }
+
+      let hasSections =
+        sections.S || sections.O || sections.A || sections.P;
+
+      let html = "";
+
+      if (hasSections) {
+        ["S", "O", "A", "P"].forEach((letra) => {
+          if (!sections[letra]) return;
+          html +=
+            '<div class="soap-section">' +
+            '<div class="soap-section-title">' +
+            letra +
+            "</div>" +
+            '<div class="soap-section-body">' +
+            applyMissing(sections[letra]) +
+            "</div>" +
+            "</div>";
+        });
+      } else {
+        // fallback: tudo em um bloco só
+        html =
+          '<div class="soap-section"><div class="soap-section-body">' +
+          applyMissing(soapText) +
+          "</div></div>";
+      }
+
+      soapOutput.innerHTML = html;
       resultsCard.classList.remove("hidden");
-
       missingExplainer.style.display = indexCounter > 0 ? "block" : "none";
     }
 
@@ -647,9 +745,9 @@
         currentSoapRaw = soap;
         renderSoapWithMissing(currentSoapRaw);
 
-        if (prescricao) {
-          prescriptionOutput.textContent = prescricao;
-          prescricaoPrint.textContent = prescricao;
+        const formattedPresc = formatPrescriptionLines(prescricao);
+        if (formattedPresc) {
+          prescriptionOutput.value = formattedPresc;
           printBtn.style.display = "inline-block";
         }
 
@@ -786,7 +884,6 @@
       };
 
       questionsRecognition.onend = () => {
-        // Se ainda estiver em modo de perguntas, tenta retomar
         if (isAskingQuestions) {
           try {
             questionsRecognition.start();
@@ -815,9 +912,8 @@
     }
 
     async function handleAskQuestionsFromPanel() {
-      // Toggle: 1º clique inicia, 2º clique encerra
       if (!isAskingQuestions) {
-        // Inicia gravação longa de perguntas
+        // Inicia gravação longa
         isAskingQuestions = true;
         soapError.textContent = "";
         micStatus.innerText =
@@ -887,9 +983,9 @@
           currentSoapRaw = soap;
           renderSoapWithMissing(currentSoapRaw);
 
-          if (prescricao) {
-            prescriptionOutput.textContent = prescricao;
-            prescricaoPrint.textContent = prescricao;
+          const formattedPresc = formatPrescriptionLines(prescricao);
+          if (formattedPresc) {
+            prescriptionOutput.value = formattedPresc;
             printBtn.style.display = "inline-block";
           }
 
@@ -927,8 +1023,7 @@
       baseTranscript = "";
       resultsCard.classList.add("hidden");
       printBtn.style.display = "none";
-      prescriptionOutput.textContent = "";
-      prescricaoPrint.textContent = "";
+      prescriptionOutput.value = "";
       soapOutput.textContent = "";
       missingExplainer.style.display = "none";
 
@@ -1015,11 +1110,16 @@
     };
 
     printBtn.onclick = () => {
-      if (!prescriptionOutput.textContent.trim()) {
+      const nomePaciente = patientNameInput.value || "________________________";
+      const prescTexto = prescriptionOutput.value || "";
+      if (!prescTexto.trim()) {
         alert("Não há prescrição para imprimir.");
         return;
       }
-      prescricaoPrint.textContent = prescriptionOutput.textContent;
+
+      printArea.textContent =
+        "Paciente: " + nomePaciente + "\n\n" + prescTexto;
+
       printArea.classList.remove("hidden");
       window.print();
       setTimeout(() => {
@@ -1032,7 +1132,6 @@
     });
 
     closeRecommendationsBtn.addEventListener("click", () => {
-      // Se estiver em modo de perguntas, encerra sem atualizar SOAP
       if (isAskingQuestions) {
         isAskingQuestions = false;
         stopQuestionsTimer();
