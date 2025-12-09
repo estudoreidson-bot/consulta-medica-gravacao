@@ -352,6 +352,14 @@
     let accumulatedSeconds = 0;
     let currentSoapRaw = "";
 
+    // Controle da sessão de perguntas essenciais
+    let isAskingQuestions = false;
+    let questionsRecognition = null;
+    let questionsTranscript = "";
+    let questionsTimerInterval = null;
+    let questionsStartTime = null;
+    let questionsAccumSeconds = 0;
+
     const recordBtn = document.getElementById("recordBtn");
     const pauseBtn = document.getElementById("pauseBtn");
     const timerEl = document.getElementById("timer");
@@ -546,6 +554,7 @@
       }
     }
 
+    // Captura rápida para campos "não informado"
     function captureAdditionalInfo() {
       return new Promise((resolve) => {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -676,6 +685,7 @@
       recommendationsStatus.classList.add("loading-dot");
       recommendationsList.innerHTML = "";
       askQuestionsBtn.disabled = true;
+      askQuestionsBtn.textContent = "Fazer perguntas";
 
       try {
         const resp = await fetch(BACKEND_URL + "/api/recomendacoes-anamnese", {
@@ -721,6 +731,7 @@
           "Use estas perguntas para aprofundar a anamnese com o paciente.";
         recommendationsStatus.classList.remove("loading-dot");
         askQuestionsBtn.disabled = false;
+        askQuestionsBtn.textContent = "Fazer perguntas";
       } catch (err) {
         console.error("Erro geral ao buscar recomendações:", err);
         recommendationsStatus.textContent =
@@ -729,83 +740,181 @@
       }
     }
 
-    async function handleAskQuestionsFromPanel() {
-      if (!baseTranscript && !finalTranscript) {
-        baseTranscript = currentSoapRaw || "";
-      }
+    // Controle do cronômetro de perguntas essenciais
+    function updateQuestionsTimer() {
+      const now = Date.now();
+      const seconds = questionsAccumSeconds + Math.floor((now - questionsStartTime) / 1000);
+      const m = ("0" + Math.floor(seconds / 60)).slice(-2);
+      const s = ("0" + (seconds % 60)).slice(-2);
+      askQuestionsBtn.textContent = `${m}:${s}`;
+    }
 
-      soapError.textContent = "";
-      micStatus.innerText =
-        "Gravando nova rodada de perguntas essenciais da anamnese. Faça as perguntas sugeridas e aguarde as respostas do paciente.";
-      micStatus.classList.add("loading-dot");
+    function startQuestionsTimer() {
+      questionsStartTime = Date.now();
+      questionsAccumSeconds = 0;
+      askQuestionsBtn.textContent = "00:00";
+      if (questionsTimerInterval) clearInterval(questionsTimerInterval);
+      questionsTimerInterval = setInterval(updateQuestionsTimer, 500);
+    }
 
-      const extra = await captureAdditionalInfo();
+    function stopQuestionsTimer() {
+      if (questionsTimerInterval) clearInterval(questionsTimerInterval);
+      questionsTimerInterval = null;
+      questionsStartTime = null;
+      questionsAccumSeconds = 0;
+      askQuestionsBtn.textContent = "Fazer perguntas";
+    }
 
-      if (!extra) {
-        micStatus.innerText = "Nenhuma informação adicional capturada.";
-        micStatus.classList.remove("loading-dot");
+    function startQuestionsRecording() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        alert("Seu navegador não suporta reconhecimento de voz para as perguntas essenciais.");
         return;
       }
 
-      finalTranscript =
-        (baseTranscript || "") +
-        "\n\nCOMPLEMENTO DE ANAMNESE (perguntas essenciais sugeridas):\n" +
-        extra +
-        "\n";
-      baseTranscript = finalTranscript;
+      questionsTranscript = "";
 
-      micStatus.innerText =
-        "Atualizando resumo SOAP com as novas informações obtidas na anamnese...";
-      micStatus.classList.add("loading-dot");
+      questionsRecognition = new SR();
+      questionsRecognition.lang = "pt-BR";
+      questionsRecognition.continuous = true;
+      questionsRecognition.interimResults = true;
+
+      questionsRecognition.onresult = (event) => {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            questionsTranscript += transcript + " ";
+          }
+        }
+      };
+
+      questionsRecognition.onerror = (e) => {
+        console.error("Erro na gravação das perguntas essenciais:", e.error);
+      };
+
+      questionsRecognition.onend = () => {
+        // Se ainda estiver em modo de perguntas, tenta retomar
+        if (isAskingQuestions) {
+          try {
+            questionsRecognition.start();
+          } catch (err) {
+            console.warn("Não foi possível retomar a gravação das perguntas essenciais:", err);
+          }
+        }
+      };
 
       try {
-        const resp = await fetch(BACKEND_URL + "/api/gerar-soap", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transcricao: finalTranscript })
-        });
+        questionsRecognition.start();
+      } catch (err) {
+        console.error("Erro ao iniciar gravação das perguntas essenciais:", err);
+      }
+    }
 
-        if (!resp.ok) {
-          const txt = await resp.text().catch(() => "");
+    function stopQuestionsRecording() {
+      if (questionsRecognition) {
+        try {
+          questionsRecognition.onend = null; // evita restart automático
+          questionsRecognition.stop();
+        } catch (e) {
+          console.warn("Erro ao parar gravação das perguntas essenciais:", e);
+        }
+      }
+    }
+
+    async function handleAskQuestionsFromPanel() {
+      // Toggle: primeira vez começa a gravar, segunda vez encerra e atualiza SOAP
+      if (!isAskingQuestions) {
+        // Iniciar sessão de perguntas
+        isAskingQuestions = true;
+        soapError.textContent = "";
+        micStatus.innerText =
+          "Gravando respostas das perguntas essenciais. Faça as perguntas para o paciente e, ao terminar, clique novamente no marcador de tempo.";
+        micStatus.classList.add("loading-dot");
+        askQuestionsBtn.disabled = false; // botão continua clicável
+        startQuestionsTimer();
+        startQuestionsRecording();
+      } else {
+        // Encerrar sessão e atualizar SOAP
+        isAskingQuestions = false;
+        stopQuestionsTimer();
+        stopQuestionsRecording();
+
+        micStatus.innerText =
+          "Atualizando resumo SOAP com as novas informações obtidas nas perguntas essenciais...";
+        micStatus.classList.add("loading-dot");
+
+        const extra = (questionsTranscript || "").trim();
+        if (!extra) {
+          micStatus.innerText =
+            "Nenhuma informação adicional capturada nas perguntas essenciais.";
+          micStatus.classList.remove("loading-dot");
+          return;
+        }
+
+        if (!baseTranscript && !finalTranscript) {
+          baseTranscript = currentSoapRaw || "";
+        }
+
+        finalTranscript =
+          (baseTranscript || "") +
+          "\n\nCOMPLEMENTO DE ANAMNESE (perguntas essenciais sugeridas):\n" +
+          extra +
+          "\n";
+        baseTranscript = finalTranscript;
+
+        try {
+          const resp = await fetch(BACKEND_URL + "/api/gerar-soap", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ transcricao: finalTranscript })
+          });
+
+          if (!resp.ok) {
+            const txt = await resp.text().catch(() => "");
+            console.error(
+              "Erro HTTP do backend (perguntas essenciais):",
+              resp.status,
+              txt
+            );
+            soapError.textContent =
+              "Erro ao atualizar o SOAP com as informações das perguntas essenciais.";
+            micStatus.innerText = "Falha ao atualizar o resumo.";
+            micStatus.classList.remove("loading-dot");
+            askQuestionsBtn.textContent = "Fazer perguntas";
+            return;
+          }
+
+          const data = await resp.json();
+          const soap = data.soap || "";
+          const prescricao = data.prescricao || "";
+
+          currentSoapRaw = soap;
+          renderSoapWithMissing(currentSoapRaw);
+
+          if (prescricao) {
+            prescriptionOutput.textContent = prescricao;
+            prescricaoPrint.textContent = prescricao;
+            printBtn.style.display = "inline-block";
+          }
+
+          micStatus.innerText =
+            "Resumo SOAP atualizado com as respostas das perguntas essenciais.";
+          micStatus.classList.remove("loading-dot");
+          askQuestionsBtn.textContent = "Fazer perguntas";
+        } catch (err) {
           console.error(
-            "Erro HTTP do backend (perguntas essenciais):",
-            resp.status,
-            txt
+            "Erro geral ao atualizar SOAP com perguntas essenciais:",
+            err
           );
           soapError.textContent =
             "Erro ao atualizar o SOAP com as informações das perguntas essenciais.";
           micStatus.innerText = "Falha ao atualizar o resumo.";
           micStatus.classList.remove("loading-dot");
-          return;
+          askQuestionsBtn.textContent = "Fazer perguntas";
+        } finally {
+          recommendationsPanel.classList.remove("visible");
+          questionsTranscript = "";
         }
-
-        const data = await resp.json();
-        const soap = data.soap || "";
-        const prescricao = data.prescricao || "";
-
-        currentSoapRaw = soap;
-        renderSoapWithMissing(currentSoapRaw);
-
-        if (prescricao) {
-          prescriptionOutput.textContent = prescricao;
-          prescricaoPrint.textContent = prescricao;
-          printBtn.style.display = "inline-block";
-        }
-
-        micStatus.innerText =
-          "Resumo SOAP atualizado com as respostas das perguntas essenciais.";
-        micStatus.classList.remove("loading-dot");
-      } catch (err) {
-        console.error(
-          "Erro geral ao atualizar SOAP com perguntas essenciais:",
-          err
-        );
-        soapError.textContent =
-          "Erro ao atualizar o SOAP com as informações das perguntas essenciais.";
-        micStatus.innerText = "Falha ao atualizar o resumo.";
-        micStatus.classList.remove("loading-dot");
-      } finally {
-        recommendationsPanel.classList.remove("visible");
       }
     }
 
@@ -928,11 +1037,20 @@
     });
 
     closeRecommendationsBtn.addEventListener("click", () => {
+      // Se estiver em modo de perguntas, encerra sem atualizar SOAP
+      if (isAskingQuestions) {
+        isAskingQuestions = false;
+        stopQuestionsTimer();
+        stopQuestionsRecording();
+        questionsTranscript = "";
+      }
       recommendationsPanel.classList.remove("visible");
     });
 
     askQuestionsBtn.addEventListener("click", () => {
-      handleAskQuestionsFromPanel();
+      if (!askQuestionsBtn.disabled) {
+        handleAskQuestionsFromPanel();
+      }
     });
 
     soapOutput.addEventListener("click", (e) => {
