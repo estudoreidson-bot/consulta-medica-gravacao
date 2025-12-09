@@ -15,8 +15,8 @@
       background: #f5f5f5;
       min-height: 100vh;
       display: flex;
-      flex-direction: column;
-      align-items: center;
+      justify-content: center;
+      align-items: flex-start;
     }
     .page {
       width: 100%;
@@ -47,10 +47,11 @@
       height: 180px;
       border-radius: 50%;
       border: none;
-      color: #ffffff;
+      cursor: pointer;
       font-size: 20px;
       font-weight: bold;
-      cursor: pointer;
+      color: #fff;
+      margin-bottom: 10px;
       transition: background 0.2s, transform 0.1s;
     }
     #recordBtn.start {
@@ -65,21 +66,20 @@
     #timer {
       font-size: 26px;
       margin-top: 16px;
-      font-weight: bold;
+      font-family: "Courier New", monospace;
     }
     #micStatus {
-      margin-top: 6px;
-      color: #666;
+      margin-top: 8px;
       font-size: 14px;
       text-align: center;
-      min-height: 18px;
+      color: #333;
+      min-height: 20px;
     }
     .controls-row {
+      margin-top: 12px;
       display: flex;
-      justify-content: center;
+      gap: 8px;
       align-items: center;
-      gap: 12px;
-      margin-top: 14px;
     }
     #pauseBtn {
       padding: 6px 14px;
@@ -89,22 +89,19 @@
       background: #6c757d;
       color: #fff;
       font-size: 13px;
-      display: none; /* só aparece enquanto a consulta estiver ativa */
+      display: none;
     }
     #pauseLabel {
       font-size: 12px;
-      color: #444;
+      color: #555;
+      margin-top: 6px;
       text-align: center;
-      margin-top: 4px;
     }
     #finishHint {
-      font-size: 13px;
-      color: #444;
+      font-size: 12px;
+      color: #555;
       margin-top: 10px;
       text-align: center;
-    }
-    .hidden {
-      display: none !important;
     }
     .results-card {
       background: #ffffff;
@@ -171,6 +168,91 @@
       color: #555;
       margin-top: 8px;
     }
+
+    /* Painel lateral de recomendações de perguntas */
+    .recommendations-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 360px;
+      max-width: 100%;
+      height: 100vh;
+      background: #ffffff;
+      box-shadow: -2px 0 8px rgba(0,0,0,0.15);
+      display: none;
+      flex-direction: column;
+      padding: 16px;
+      z-index: 1000;
+    }
+    .recommendations-panel.visible {
+      display: flex;
+    }
+    .recommendations-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .recommendations-header h3 {
+      margin: 0;
+      font-size: 16px;
+    }
+    .close-panel-btn {
+      border: none;
+      background: transparent;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+    .recommendations-status {
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 8px;
+    }
+    .recommendations-list {
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+    .recommendation-item {
+      background: #f5f5f5;
+      border-radius: 8px;
+      padding: 8px;
+      margin-bottom: 6px;
+    }
+    .ask-questions-btn {
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: none;
+      cursor: pointer;
+      background: #007bff;
+      color: #fff;
+      font-size: 14px;
+    }
+    .ask-questions-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .recommendations-footer {
+      font-size: 11px;
+      color: #666;
+      margin-top: 8px;
+    }
+    #recommendationsBtn {
+      margin-left: 8px;
+      padding: 8px 18px;
+      border-radius: 20px;
+      border: 1px solid #0c5460;
+      background: #ffffff;
+      color: #0c5460;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #recommendationsBtn:hover {
+      background: #e6f2f5;
+    }
+
     @media (max-width: 480px) {
       #recordBtn {
         width: 150px;
@@ -183,25 +265,18 @@
       body {
         background: #ffffff;
       }
-      .page, .center-card, .results-card {
-        box-shadow: none;
-        width: 100%;
-        max-width: 100%;
-      }
-      #recordBtn,
-      #pauseBtn,
-      #printBtn,
-      #finishHint,
-      #micStatus,
-      #timer,
-      #pauseLabel,
-      .missing-explainer,
-      .missing-btn {
-        display: none !important;
+      .page {
+        display: none;
       }
       #printArea {
         display: block !important;
       }
+    }
+    #printArea {
+      display: none;
+    }
+    .hidden {
+      display: none !important;
     }
   </style>
 </head>
@@ -223,6 +298,7 @@
       <div id="finishHint">
         Para encerrar a consulta e gerar o resumo SOAP, clique novamente no botão grande vermelho.
       </div>
+
       <div id="soapError" class="error"></div>
     </div>
 
@@ -230,20 +306,39 @@
       <h2>Resumo SOAP</h2>
       <pre id="soapOutput"></pre>
       <div class="missing-explainer" id="missingExplainer" style="display:none;">
-        Campos marcados como <strong>não informado</strong> aparecem como botões. Clique para perguntar ao paciente e atualizar o resumo automaticamente.
+        Campos marcados como <strong>não informado</strong> aparecem com um botão.
+        Clique nesses botões para perguntar ao paciente e atualizar o resumo automaticamente.
       </div>
 
       <h2>Prescrição</h2>
       <pre id="prescriptionOutput"></pre>
 
       <button id="printBtn">Imprimir prescrição</button>
+      <button id="recommendationsBtn">Recomendações de perguntas</button>
     </div>
 
     <!-- Área usada para impressão somente da prescrição -->
     <div id="printArea" class="hidden">
-      <h2>Prescrição médica</h2>
+      <h2>Prescrição</h2>
       <pre id="prescricaoPrint"></pre>
     </div>
+  </div>
+
+  <!-- Painel lateral de recomendações -->
+  <div id="recommendationsPanel" class="recommendations-panel">
+    <div class="recommendations-header">
+      <h3>Perguntas essenciais para anamnese</h3>
+      <button id="closeRecommendationsBtn" class="close-panel-btn" aria-label="Fechar painel de recomendações">X</button>
+    </div>
+    <div id="recommendationsStatus" class="recommendations-status">
+      Clique em "Recomendações de perguntas" para gerar perguntas complementares essenciais.
+    </div>
+    <div id="recommendationsList" class="recommendations-list"></div>
+    <button id="askQuestionsBtn" class="ask-questions-btn" disabled>Fazer perguntas</button>
+    <p class="recommendations-footer">
+      Ao clicar em "Fazer perguntas", uma nova gravação será iniciada para você aplicar essas perguntas diretamente ao paciente.
+      As respostas serão usadas para atualizar automaticamente o resumo SOAP e a conduta.
+    </p>
   </div>
 
   <script>
@@ -272,6 +367,13 @@
     const printArea = document.getElementById("printArea");
     const missingExplainer = document.getElementById("missingExplainer");
 
+    const recommendationsBtn = document.getElementById("recommendationsBtn");
+    const recommendationsPanel = document.getElementById("recommendationsPanel");
+    const closeRecommendationsBtn = document.getElementById("closeRecommendationsBtn");
+    const recommendationsStatus = document.getElementById("recommendationsStatus");
+    const recommendationsList = document.getElementById("recommendationsList");
+    const askQuestionsBtn = document.getElementById("askQuestionsBtn");
+
     function initSpeech() {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SR) {
@@ -284,25 +386,30 @@
       recognition.continuous = true;
       recognition.interimResults = true;
 
-      recognition.onresult = (e) => {
-        let interim = "";
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const t = e.results[i][0].transcript;
-          if (e.results[i].isFinal) {
-            finalTranscript += t + " ";
+      recognition.onresult = (event) => {
+        let interimTranscript = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + " ";
           } else {
-            interim += t;
+            interimTranscript += transcript;
           }
         }
-        // NÃO mostramos a transcrição na tela – fica apenas em memória.
       };
 
-      recognition.onerror = (e) => {
-        micStatus.innerText = "Erro no microfone: " + e.error;
+      recognition.onerror = (event) => {
+        console.error("Erro no reconhecimento de voz:", event.error);
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          micStatus.innerText =
+            "Permita o acesso ao microfone nas configurações do navegador e tente novamente.";
+        } else {
+          micStatus.innerText =
+            "Ocorreu um erro no reconhecimento de voz. Tente novamente.";
+        }
       };
 
       recognition.onend = () => {
-        // Se terminou sozinho mas a consulta ainda está ativa e não está pausada, tenta retomar.
         if (isRecording && !isPaused) {
           try {
             recognition.start();
@@ -333,107 +440,53 @@
       accumulatedSeconds += Math.floor((now - startTime) / 1000);
       if (timerInterval) clearInterval(timerInterval);
       timerInterval = null;
-      startTime = null;
     }
 
     function resetTimer() {
-      accumulatedSeconds = 0;
-      startTime = null;
       if (timerInterval) clearInterval(timerInterval);
       timerInterval = null;
+      startTime = null;
+      accumulatedSeconds = 0;
       timerEl.innerText = "00:00";
     }
 
-    function startRecording() {
-      if (!recognition) initSpeech();
-      if (!recognition) return;
-
-      finalTranscript = "";
-      baseTranscript = "";
-      isRecording = true;
-      isPaused = false;
-      pauseBtn.style.display = "inline-block";
-      pauseBtn.innerText = "Pausar";
-      recordBtn.className = "recording";
-      recordBtn.innerText = "Encerrar consulta";
-      micStatus.innerText = "Gravando consulta...";
+    async function finalizarConsulta() {
       soapError.textContent = "";
-      resultsCard.classList.add("hidden");
-
-      resetTimer();
-      startTimer();
-
-      try {
-        recognition.start();
-      } catch (e) {
-        console.warn("Erro ao iniciar reconhecimento:", e);
-      }
-    }
-
-    function pauseRecording() {
-      if (!recognition) return;
-      isPaused = true;
-      pauseTimer();
-      pauseBtn.innerText = "Retomar consulta";
-      micStatus.innerText = "Consulta pausada.";
-      try {
-        recognition.stop();
-      } catch (e) {}
-    }
-
-    function resumeRecording() {
-      if (!recognition) return;
-      isPaused = false;
-      micStatus.innerText = "Gravando consulta...";
-      pauseBtn.innerText = "Pausar";
-      startTimer();
-      try {
-        recognition.start();
-      } catch (e) {}
-    }
-
-    async function stopRecordingAndGenerate() {
-      isRecording = false;
-      isPaused = false;
-      pauseBtn.style.display = "none";
-      recordBtn.className = "start";
-      recordBtn.innerText = "Iniciar consulta";
-      pauseTimer();
+      micStatus.innerText = "Gerando resumo SOAP e prescrição com base na gravação...";
+      micStatus.classList.add("loading-dot");
 
       if (recognition) {
         try {
           recognition.stop();
-        } catch (e) {}
+        } catch (e) {
+          console.warn("Erro ao parar reconhecimento:", e);
+        }
       }
 
-      if (!finalTranscript.trim()) {
-        micStatus.innerText = "Consulta encerrada, mas nenhum áudio foi capturado.";
+      pauseTimer();
+
+      const transcricao = finalTranscript.trim();
+      if (!transcricao) {
+        micStatus.classList.remove("loading-dot");
+        micStatus.innerText =
+          "Nenhuma fala foi capturada. Verifique o microfone e tente novamente.";
         return;
       }
 
-      micStatus.innerText = "Gerando resumo SOAP e prescrição...";
-      micStatus.classList.add("loading-dot");
-      soapOutput.textContent = "";
-      prescriptionOutput.textContent = "";
-      resultsCard.classList.remove("hidden");
-      printBtn.style.display = "none";
-      soapError.textContent = "";
-      missingExplainer.style.display = "none";
-
-      baseTranscript = finalTranscript; // guarda a transcrição base
+      baseTranscript = transcricao;
 
       try {
         const resp = await fetch(BACKEND_URL + "/api/gerar-soap", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transcricao: baseTranscript })
+          body: JSON.stringify({ transcricao })
         });
 
         if (!resp.ok) {
           const txt = await resp.text().catch(() => "");
           console.error("Erro HTTP do backend:", resp.status, txt);
           soapError.textContent =
-            "Erro ao comunicar com o servidor. Verifique se o backend no Render está Live e com OPENAI_API_KEY correta.";
+            "Erro ao gerar SOAP/prescrição. Verifique o backend e tente novamente.";
           micStatus.innerText = "Falha ao gerar o resumo.";
           micStatus.classList.remove("loading-dot");
           return;
@@ -467,42 +520,34 @@
         .replace(/>/g, "&gt;");
     }
 
-    // transforma "não informado" em botões clicáveis dentro do SOAP
     function renderSoapWithMissing(soapText) {
-      const pattern = /não informado/gi;
-      let lastIndex = 0;
-      let match;
-      let html = "";
-      let foundMissing = false;
-
-      while ((match = pattern.exec(soapText)) !== null) {
-        const before = soapText.slice(lastIndex, match.index);
-        html += escapeHtml(before);
-
-        // contexto anterior para ajudar a IA a entender qual campo está sendo complementado
-        const contextStart = Math.max(0, match.index - 60);
-        const context = soapText.slice(contextStart, match.index).trim();
-
-        html += `<button class="missing-btn" data-context="${escapeHtml(
-          context
-        )}">não informado</button>`;
-
-        lastIndex = match.index + match[0].length;
-        foundMissing = true;
+      if (!soapText) {
+        soapOutput.textContent = "";
+        missingExplainer.style.display = "none";
+        return;
       }
 
-      html += escapeHtml(soapText.slice(lastIndex));
+      let indexCounter = 0;
+      const replaced = soapText.replace(/não informado/gi, (match) => {
+        indexCounter++;
+        const contextSnippet = "campo " + indexCounter;
+        return (
+          '<button class="missing-btn" data-context="' +
+          escapeHtml(contextSnippet) +
+          '">não informado</button>'
+        );
+      });
 
-      soapOutput.innerHTML = html;
+      soapOutput.innerHTML = replaced;
+      resultsCard.classList.remove("hidden");
 
-      if (foundMissing) {
+      if (indexCounter > 0) {
         missingExplainer.style.display = "block";
       } else {
         missingExplainer.style.display = "none";
       }
     }
 
-    // captura informação adicional por voz (ou texto digitado, se sem suporte de voz)
     function captureAdditionalInfo() {
       return new Promise((resolve) => {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -522,14 +567,13 @@
         let finalText = "";
         let interim = "";
 
-        rec.onresult = (e) => {
-          interim = "";
-          for (let i = e.resultIndex; i < e.results.length; i++) {
-            const t = e.results[i][0].transcript;
-            if (e.results[i].isFinal) {
-              finalText += t + " ";
+        rec.onresult = (event) => {
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalText += transcript + " ";
             } else {
-              interim += t;
+              interim += transcript;
             }
           }
         };
@@ -569,10 +613,11 @@
         return;
       }
 
-      // adiciona informação complementar à transcrição base
       finalTranscript =
         (baseTranscript || "") +
-        `\n\nINFORMAÇÃO ADICIONAL SOBRE: ${contextSnippet || "campo não informado"}\nRESPOSTA do paciente/médico: ${extra}\n`;
+        `\n\nINFORMAÇÃO ADICIONAL SOBRE: ${
+          contextSnippet || "campo não informado"
+        }\nRESPOSTA do paciente/médico: ${extra}\n`;
       baseTranscript = finalTranscript;
 
       micStatus.innerText = "Atualizando resumo SOAP com a nova informação...";
@@ -612,21 +657,274 @@
           "Resumo SOAP atualizado com a nova informação.";
         micStatus.classList.remove("loading-dot");
       } catch (err) {
-        console.error(err);
+        console.error("Erro geral ao atualizar SOAP com complemento:", err);
         soapError.textContent =
-          "Erro ao atualizar SOAP e prescrição com a informação adicional.";
+          "Erro ao atualizar o SOAP com a informação adicional.";
         micStatus.innerText = "Falha ao atualizar o resumo.";
         micStatus.classList.remove("loading-dot");
       }
     }
 
+    async function fetchRecommendations() {
+      if (!currentSoapRaw || !currentSoapRaw.trim()) {
+        soapError.textContent =
+          "Não há SOAP gerado ainda para sugerir perguntas complementares.";
+        return;
+      }
+
+      if (!recommendationsPanel) {
+        return;
+      }
+
+      recommendationsPanel.classList.add("visible");
+      if (recommendationsStatus) {
+        recommendationsStatus.textContent =
+          "Gerando perguntas complementares essenciais com base na queixa e no SOAP...";
+        recommendationsStatus.classList.add("loading-dot");
+      }
+      if (recommendationsList) {
+        recommendationsList.innerHTML = "";
+      }
+      if (askQuestionsBtn) {
+        askQuestionsBtn.disabled = true;
+      }
+
+      try {
+        const resp = await fetch(BACKEND_URL + "/api/recomendacoes-anamnese", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            soap: currentSoapRaw
+          })
+        });
+
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => "");
+          console.error(
+            "Erro HTTP do backend (recomendações):",
+            resp.status,
+            txt
+          );
+          if (recommendationsStatus) {
+            recommendationsStatus.textContent =
+              "Não foi possível gerar as recomendações de perguntas.";
+            recommendationsStatus.classList.remove("loading-dot");
+          }
+          return;
+        }
+
+        const data = await resp.json();
+        const perguntas = Array.isArray(data.perguntas) ? data.perguntas : [];
+
+        if (!perguntas.length) {
+          if (recommendationsStatus) {
+            recommendationsStatus.textContent =
+              "Nenhuma pergunta complementar foi sugerida para este caso.";
+            recommendationsStatus.classList.remove("loading-dot");
+          }
+          return;
+        }
+
+        if (recommendationsList) {
+          recommendationsList.innerHTML = "";
+          perguntas.forEach((q, index) => {
+            const item = document.createElement("div");
+            item.className = "recommendation-item";
+            item.textContent = (index + 1) + ". " + q;
+            recommendationsList.appendChild(item);
+          });
+        }
+
+        if (recommendationsStatus) {
+          recommendationsStatus.textContent =
+            "Use estas perguntas para aprofundar a anamnese com o paciente.";
+          recommendationsStatus.classList.remove("loading-dot");
+        }
+
+        if (askQuestionsBtn) {
+          askQuestionsBtn.disabled = false;
+        }
+      } catch (err) {
+        console.error("Erro geral ao buscar recomendações:", err);
+        if (recommendationsStatus) {
+          recommendationsStatus.textContent =
+            "Erro ao gerar recomendações de perguntas.";
+          recommendationsStatus.classList.remove("loading-dot");
+        }
+      }
+    }
+
+    async function handleAskQuestionsFromPanel() {
+      if (!baseTranscript && !finalTranscript) {
+        baseTranscript = currentSoapRaw || "";
+      }
+
+      soapError.textContent = "";
+      micStatus.innerText =
+        "Gravando nova rodada de perguntas essenciais da anamnese. Faça as perguntas sugeridas e aguarde as respostas do paciente.";
+      micStatus.classList.add("loading-dot");
+
+      const extra = await captureAdditionalInfo();
+
+      if (!extra) {
+        micStatus.innerText = "Nenhuma informação adicional capturada.";
+        micStatus.classList.remove("loading-dot");
+        return;
+      }
+
+      finalTranscript =
+        (baseTranscript || "") +
+        "\n\nCOMPLEMENTO DE ANAMNESE (perguntas essenciais sugeridas):\n" +
+        extra +
+        "\n";
+      baseTranscript = finalTranscript;
+
+      micStatus.innerText =
+        "Atualizando resumo SOAP com as novas informações obtidas na anamnese...";
+      micStatus.classList.add("loading-dot");
+
+      try {
+        const resp = await fetch(BACKEND_URL + "/api/gerar-soap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcricao: finalTranscript })
+        });
+
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => "");
+          console.error(
+            "Erro HTTP do backend (perguntas essenciais):",
+            resp.status,
+            txt
+          );
+          soapError.textContent =
+            "Erro ao atualizar o SOAP com as informações das perguntas essenciais.";
+          micStatus.innerText = "Falha ao atualizar o resumo.";
+          micStatus.classList.remove("loading-dot");
+          return;
+        }
+
+        const data = await resp.json();
+        const soap = data.soap || "";
+        const prescricao = data.prescricao || "";
+
+        currentSoapRaw = soap;
+        renderSoapWithMissing(currentSoapRaw);
+
+        if (prescricao) {
+          prescriptionOutput.textContent = prescricao;
+          prescricaoPrint.textContent = prescricao;
+          printBtn.style.display = "inline-block";
+        }
+
+        micStatus.innerText =
+          "Resumo SOAP atualizado com as respostas das perguntas essenciais.";
+        micStatus.classList.remove("loading-dot");
+      } catch (err) {
+        console.error(
+          "Erro geral ao atualizar SOAP com perguntas essenciais:",
+          err
+        );
+        soapError.textContent =
+          "Erro ao atualizar o SOAP com as informações das perguntas essenciais.";
+        micStatus.innerText = "Falha ao atualizar o resumo.";
+        micStatus.classList.remove("loading-dot");
+      } finally {
+        if (recommendationsPanel) {
+          recommendationsPanel.classList.remove("visible");
+        }
+      }
+    }
+
+    function startRecording() {
+      if (!recognition) {
+        initSpeech();
+        if (!recognition) {
+          return;
+        }
+      }
+
+      isRecording = true;
+      isPaused = false;
+      finalTranscript = "";
+      baseTranscript = "";
+      resultsCard.classList.add("hidden");
+      printBtn.style.display = "none";
+      prescriptionOutput.textContent = "";
+      prescricaoPrint.textContent = "";
+      soapOutput.textContent = "";
+      missingExplainer.style.display = "none";
+
+      pauseBtn.style.display = "inline-block";
+      pauseBtn.innerText = "Pausar";
+      recordBtn.className = "recording";
+      recordBtn.innerText = "Encerrar consulta";
+      micStatus.innerText = "Gravando consulta...";
+      soapError.textContent = "";
+      resultsCard.classList.add("hidden");
+
+      resetTimer();
+      startTimer();
+
+      try {
+        recognition.start();
+      } catch (e) {
+        console.warn("Erro ao iniciar reconhecimento:", e);
+      }
+    }
+
+    function stopRecording() {
+      isRecording = false;
+      isPaused = false;
+      if (recognition) {
+        try {
+          recognition.stop();
+        } catch (e) {
+          console.warn("Erro ao parar reconhecimento:", e);
+        }
+      }
+      pauseTimer();
+      recordBtn.className = "start";
+      recordBtn.innerText = "Iniciar consulta";
+      pauseBtn.style.display = "none";
+    }
+
+    function pauseRecording() {
+      if (!isRecording || isPaused) return;
+      isPaused = true;
+      if (recognition) {
+        try {
+          recognition.stop();
+        } catch (e) {
+          console.warn("Erro ao pausar reconhecimento:", e);
+        }
+      }
+      pauseTimer();
+      pauseBtn.innerText = "Retomar";
+      micStatus.innerText = "Consulta pausada.";
+    }
+
+    function resumeRecording() {
+      if (!isRecording || !isPaused) return;
+      isPaused = false;
+      if (recognition) {
+        try {
+          recognition.start();
+        } catch (e) {
+          console.warn("Erro ao retomar reconhecimento:", e);
+        }
+      }
+      startTimer();
+      pauseBtn.innerText = "Pausar";
+      micStatus.innerText = "Gravando consulta...";
+    }
+
     recordBtn.onclick = () => {
       if (!isRecording) {
-        // iniciar consulta
         startRecording();
       } else {
-        // encerrar consulta e gerar SOAP automaticamente
-        stopRecordingAndGenerate();
+        stopRecording();
+        finalizarConsulta();
       }
     };
 
@@ -651,6 +949,24 @@
         printArea.classList.add("hidden");
       }, 500);
     };
+
+    if (recommendationsBtn) {
+      recommendationsBtn.addEventListener("click", () => {
+        fetchRecommendations();
+      });
+    }
+
+    if (closeRecommendationsBtn) {
+      closeRecommendationsBtn.addEventListener("click", () => {
+        recommendationsPanel.classList.remove("visible");
+      });
+    }
+
+    if (askQuestionsBtn) {
+      askQuestionsBtn.addEventListener("click", () => {
+        handleAskQuestionsFromPanel();
+      });
+    }
 
     // clique nos botões "não informado" dentro do SOAP
     soapOutput.addEventListener("click", (e) => {
