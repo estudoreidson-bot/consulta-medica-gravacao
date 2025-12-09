@@ -168,7 +168,7 @@
       margin-top: 8px;
     }
 
-    /* Painel lateral de recomendações de perguntas */
+    /* Painel lateral de recomendações */
     .recommendations-panel {
       position: fixed;
       top: 0;
@@ -393,13 +393,10 @@
       recognition.interimResults = true;
 
       recognition.onresult = (event) => {
-        let interimTranscript = "";
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
             finalTranscript += transcript + " ";
-          } else {
-            interimTranscript += transcript;
           }
         }
       };
@@ -534,7 +531,7 @@
       }
 
       let indexCounter = 0;
-      const replaced = soapText.replace(/não informado/gi, (match) => {
+      const replaced = soapText.replace(/não informado/gi, () => {
         indexCounter++;
         const contextSnippet = "campo " + indexCounter;
         return (
@@ -547,11 +544,7 @@
       soapOutput.innerHTML = replaced;
       resultsCard.classList.remove("hidden");
 
-      if (indexCounter > 0) {
-        missingExplainer.style.display = "block";
-      } else {
-        missingExplainer.style.display = "none";
-      }
+      missingExplainer.style.display = indexCounter > 0 ? "block" : "none";
     }
 
     // Captura rápida para campos "não informado"
@@ -740,7 +733,7 @@
       }
     }
 
-    // Controle do cronômetro de perguntas essenciais
+    // Timer do botão "Fazer perguntas"
     function updateQuestionsTimer() {
       const now = Date.now();
       const seconds = questionsAccumSeconds + Math.floor((now - questionsStartTime) / 1000);
@@ -813,7 +806,7 @@
     function stopQuestionsRecording() {
       if (questionsRecognition) {
         try {
-          questionsRecognition.onend = null; // evita restart automático
+          questionsRecognition.onend = null;
           questionsRecognition.stop();
         } catch (e) {
           console.warn("Erro ao parar gravação das perguntas essenciais:", e);
@@ -822,32 +815,35 @@
     }
 
     async function handleAskQuestionsFromPanel() {
-      // Toggle: primeira vez começa a gravar, segunda vez encerra e atualiza SOAP
+      // Toggle: 1º clique inicia, 2º clique encerra
       if (!isAskingQuestions) {
-        // Iniciar sessão de perguntas
+        // Inicia gravação longa de perguntas
         isAskingQuestions = true;
         soapError.textContent = "";
         micStatus.innerText =
-          "Gravando respostas das perguntas essenciais. Faça as perguntas para o paciente e, ao terminar, clique novamente no marcador de tempo.";
+          "Gravando nova rodada de perguntas essenciais da anamnese. Faça as perguntas sugeridas e aguarde as respostas do paciente.";
         micStatus.classList.add("loading-dot");
-        askQuestionsBtn.disabled = false; // botão continua clicável
+        askQuestionsBtn.disabled = false;
         startQuestionsTimer();
         startQuestionsRecording();
       } else {
-        // Encerrar sessão e atualizar SOAP
+        // Encerra gravação e atualiza SOAP
         isAskingQuestions = false;
         stopQuestionsTimer();
         stopQuestionsRecording();
 
         micStatus.innerText =
-          "Atualizando resumo SOAP com as novas informações obtidas nas perguntas essenciais...";
+          "Atualizando resumo SOAP com as novas respostas da anamnese...";
         micStatus.classList.add("loading-dot");
 
         const extra = (questionsTranscript || "").trim();
+        questionsTranscript = "";
+
         if (!extra) {
           micStatus.innerText =
             "Nenhuma informação adicional capturada nas perguntas essenciais.";
           micStatus.classList.remove("loading-dot");
+          askQuestionsBtn.textContent = "Fazer perguntas";
           return;
         }
 
@@ -913,7 +909,6 @@
           askQuestionsBtn.textContent = "Fazer perguntas";
         } finally {
           recommendationsPanel.classList.remove("visible");
-          questionsTranscript = "";
         }
       }
     }
