@@ -1,5 +1,4 @@
 // server.js
-require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
@@ -13,11 +12,10 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(bodyParser.json());
 
-// Servir o index.html localmente (útil para testes locais)
-// No Render, você pode ou não usar isso dependendo da configuração.
+// Servir o index.html (útil para testes locais)
 app.use(express.static(path.join(__dirname)));
 
-// Configuração do cliente OpenAI (NÃO coloque a chave fixa aqui, use variável de ambiente)
+// Cliente OpenAI usando a variável de ambiente do Render
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -78,7 +76,6 @@ TRANSCRIÇÃO DA CONSULTA:
     try {
       data = JSON.parse(raw);
     } catch (e) {
-      // Se vier com texto extra, tenta achar o primeiro bloco { ... }
       const firstBrace = raw.indexOf("{");
       const lastBrace = raw.lastIndexOf("}");
       if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
