@@ -93,6 +93,14 @@ Requisitos específicos do SOAP:
      P: Plano farmacológico, ajustes de medicação, exames a solicitar, etc.
      Tratamento não farmacológico / Orientações: descrição das orientações não medicamentosas.
 
+4) Campo "prescricao" no JSON:
+   - É OBRIGATÓRIO preencher o campo "prescricao".
+   - Nunca deixe o campo "prescricao" vazio e nunca o omita do JSON.
+   - Se o caso clínico tiver indicação de tratamento medicamentoso (por exemplo, exames alterados como vitamina D baixa, ferritina baixa, PA elevada, sintomas infecciosos etc.), descreva uma prescrição coerente com o quadro, em linguagem médica e com posologia completa (dose, via, intervalo e duração).
+   - Se, após a análise clínica, realmente não houver indicação de qualquer medicação, escreva exatamente:
+     "Sem prescrição medicamentosa nesta consulta."
+     em vez de deixar o campo vazio.
+
 Regras gerais:
 - Escreva tudo em português do Brasil.
 - Não explique o que está fazendo.
@@ -120,8 +128,8 @@ TRANSCRIÇÃO DA CONSULTA:
       }
     }
 
-    const soap = data.soap || "";
-    const prescricao = data.prescricao || "";
+    const soap = typeof data.soap === "string" ? data.soap : "";
+    const prescricao = typeof data.prescricao === "string" ? data.prescricao : "";
 
     return res.json({ soap, prescricao });
   } catch (err) {
