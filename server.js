@@ -65,6 +65,9 @@ Regras:
 - Escreva tudo em português do Brasil.
 - Não explique o que está fazendo.
 - A saída deve ser apenas o JSON, nada antes ou depois.
+- Se a consulta envolver discussão de exames laboratoriais, de imagem ou outros resultados complementares, registre no campo O do SOAP todos os exames mencionados na transcrição, mesmo os que estiverem normais.
+- Para cada exame mencionado, escreva o nome do exame e o valor/resultado informado, por exemplo: "Hemograma completo: normal", "Ferritina: 10 ng/mL (baixo)", "Vitamina D: 18,8 ng/mL (baixo)", "Vitamina B12: 230 pg/mL (limítrofe)".
+- Nunca invente exames ou valores que não tenham sido explicitamente ditos na transcrição. Apenas organize e reescreva com clareza aquilo que o médico relatou.
 
 TRANSCRIÇÃO DA CONSULTA:
 """${transcricao}"""
@@ -99,20 +102,17 @@ TRANSCRIÇÃO DA CONSULTA:
 });
 
 // ======================================================================
-// ROTA 2 – RECOMENDAÇÕES DE PERGUNTAS COMPLEMENTARES (ANAMNESE)
+// ROTA 2 – RECOMENDAÇÕES DE PERGUNTAS (ANAMNESE)
 // ======================================================================
 
 app.post("/api/recomendacoes-anamnese", async (req, res) => {
   try {
-    const {
-      queixa_principal = "",
-      historico_resumido = "",
-      soap,
-    } = req.body || {};
+    const { queixaPrincipal, historicoResumido, soapAtual } = req.body || {};
 
-    if (!soap || !soap.trim()) {
+    if (!queixaPrincipal && !historicoResumido && !soapAtual) {
       return res.status(400).json({
-        error: "O campo 'soap' é obrigatório para gerar as recomendações.",
+        error:
+          "É necessário enviar pelo menos queixaPrincipal, historicoResumido ou soapAtual.",
       });
     }
 
@@ -129,7 +129,7 @@ CONTEXTO DO SISTEMA
 - A sua função, neste fluxo, NÃO é atender o paciente. Você está exclusivamente orientando o médico a melhorar a anamnese.
 - O conteúdo retornado será exibido em uma ABA LATERAL como perguntas essenciais.
 - O médico poderá clicar em um botão “Fazer Perguntas” dentro dessa aba.  
-  Se o médico clicar nesse botão, o sistema iniciará uma nova gravação e ele perguntará diretamente ao paciente as perguntas sugeridas.  
+  Se o médico clicar nesse botão, o sistema iniciará uma nova gravação de áudio e ele perguntará diretamente ao paciente as perguntas sugeridas.  
   As respostas obtidas serão usadas para REFAZER automaticamente o SOAP com maior precisão diagnóstica e terapêutica.
 
 TAREFA
@@ -146,37 +146,30 @@ A partir da queixa principal, do histórico resumido e do SOAP atual:
    - Ser curtas, claras e objetivas
    - Ser feitas diretamente ao paciente (“Você…?”)
    - Focar em:
-       • início e duração dos sintomas  
-       • características do sintoma principal  
-       • fatores de melhora ou piora  
-       • sinais de alarme relevantes ao caso  
-       • comorbidades, medicamentos de uso contínuo e alergias  
-       • antecedentes pessoais e familiares pertinentes  
-       • hábitos de vida quando forem relevantes
-   - Não incluir perguntas irrelevantes ou genéricas.  
-   - Priorizar segurança clínica e precisão diagnóstica.
+     • Início, duração e evolução dos sintomas
+     • Características do sintoma principal
+     • Fatores de alívio e piora
+     • Comorbidades relevantes
+     • Uso de medicações
+     • Sinais de gravidade
 
-FORMATO DE SAÍDA
-Responda SEM explicações. Apenas retorne no seguinte formato JSON:
+3. Apresente a saída EXCLUSIVAMENTE no seguinte JSON:
 
 {
   "perguntas": [
-    "Pergunta 1 em frase direta ao paciente?",
-    "Pergunta 2 em frase direta ao paciente?",
-    "Pergunta 3 em frase direta ao paciente?"
+    "Pergunta 1 em português, direta ao paciente...",
+    "Pergunta 2 em português, direta ao paciente...",
+    "Pergunta 3 em português, direta ao paciente..."
   ]
 }
 
-IMPORTANTE
-- Nunca se apresente como IA, modelo de linguagem, algoritmo, chatbot ou termos semelhantes.
-- Escreva sempre em português do Brasil.
-- O leitor da sua resposta é o MÉDICO HUMANO, mas as perguntas devem ser formuladas para ele fazer diretamente ao paciente.
+- Não explique o raciocínio.
+- Não inclua qualquer outro texto fora do JSON.
 
-DADOS RECEBIDOS DO SISTEMA
-Queixa principal: ${queixa_principal}
-Histórico resumido: ${historico_resumido}
-SOAP atual:
-${soap}
+DADOS RECEBIDOS DO SISTEMA:
+- Queixa principal: "${queixaPrincipal || ""}"
+- Histórico resumido: "${historicoResumido || ""}"
+- SOAP atual: """${soapAtual || ""}"""
 `;
 
     const raw = await callOpenAI(prompt);
@@ -191,7 +184,9 @@ ${soap}
         const jsonSlice = raw.slice(firstBrace, lastBrace + 1);
         data = JSON.parse(jsonSlice);
       } else {
-        throw new Error("Resposta do modelo não pôde ser convertida em JSON.");
+        throw new Error(
+          "Resposta do modelo de recomendações não pôde ser convertida em JSON."
+        );
       }
     }
 
