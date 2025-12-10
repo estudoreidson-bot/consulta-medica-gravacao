@@ -54,17 +54,51 @@ app.post("/api/gerar-soap", async (req, res) => {
     const prompt = `
 Você é um médico que está recebendo a transcrição de uma consulta em português do Brasil.
 
-A partir da transcrição abaixo, gere obrigatoriamente um JSON no formato:
+A partir da transcrição abaixo, gere obrigatoriamente um JSON no formato exato:
 
 {
   "soap": "Texto do resumo no formato SOAP (S:, O:, A:, P:), bem escrito em português do Brasil.",
   "prescricao": "Texto da prescrição médica em português, com posologia detalhada. Não inclua imagens."
 }
 
-Regras:
+Requisitos específicos do SOAP:
+
+1) Estrutura obrigatória em quatro seções, na ordem:
+   S: ...
+   O: ...
+   A: ...
+   P: ...
+
+2) Campo O (Objetivo):
+   - Se a consulta envolver discussão de exames laboratoriais, exames de imagem ou outros exames complementares, você deve registrar TODOS os exames mencionados, inclusive os que estiverem normais.
+   - Para cada exame citado na transcrição, escreva:
+     • Nome do exame
+     • Valor ou resultado
+     • Interpretação breve (normal, baixo, alto, limítrofe, etc.)
+   - Exemplos de formatação no campo O:
+     - "Hemograma completo: normal."
+     - "Ferritina: 10 ng/mL (baixo)."
+     - "Vitamina D: 18,8 ng/mL (baixo)."
+     - "Vitamina B12: 230 pg/mL (limítrofe)."
+   - Nunca invente exames ou valores. Apenas use aqueles que forem explicitamente mencionados na transcrição.
+
+3) Campo P (Plano):
+   - Deve conter tanto o plano farmacológico quanto o plano não farmacológico.
+   - Ao final do campo P, inclua SEMPRE um subbloco com o rótulo exato:
+     "Tratamento não farmacológico / Orientações:"
+   - Nesse subbloco, descreva as orientações de medidas não medicamentosas discutidas ou recomendáveis para o caso (por exemplo: alimentação, atividade física, higiene do sono, redução de álcool/tabaco, medidas de autocuidado, etc.).
+   - Se a transcrição não mencionar nenhuma orientação específica, ainda assim mantenha o rótulo e escreva uma frase simples, por exemplo:
+     "Tratamento não farmacológico / Orientações: orientações gerais de saúde, sem recomendações específicas adicionais registradas na consulta."
+   - O campo P deve ficar com um texto contínuo, por exemplo:
+     P: Plano farmacológico, ajustes de medicação, exames a solicitar, etc.
+     Tratamento não farmacológico / Orientações: descrição das orientações não medicamentosas.
+
+Regras gerais:
 - Escreva tudo em português do Brasil.
 - Não explique o que está fazendo.
-- A saída deve ser apenas o JSON, nada antes ou depois.
+- Não use formatação em Markdown; apenas texto simples.
+- A saída deve ser apenas o JSON válido, nada antes ou depois.
+- Não invente exames, queixas, diagnósticos ou condutas que não estejam apoiados na transcrição, mas organize e reformule com clareza o que foi dito.
 
 TRANSCRIÇÃO DA CONSULTA:
 """${transcricao}"""
