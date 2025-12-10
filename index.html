@@ -576,15 +576,15 @@
         }
 
         const data = await resp.json();
-        const soap = data.soap || "Nenhum texto de SOAP retornado.";
-        const prescricao = data.prescricao || "Nenhum texto de prescrição retornado.";
+        const soap = typeof data.soap === "string" ? data.soap : "";
+        const prescricao = typeof data.prescricao === "string" ? data.prescricao : "";
 
         currentSoapRaw = soap;
         renderSoapWithMissing(currentSoapRaw);
 
         prescriptionOutput.textContent = prescricao;
         prescricaoPrint.textContent = prescricao;
-        printBtn.style.display = "inline-block";
+        printBtn.style.display = prescricao.trim() ? "inline-block" : "none";
 
         micStatus.innerText = "Consulta encerrada. Resumo e prescrição gerados.";
         micStatus.classList.remove("loading-dot");
@@ -604,30 +604,61 @@
         .replace(/>/g, "&gt;");
     }
 
+    // NOVA LÓGICA: encontra S:, O:, A:, P: em qualquer lugar da string (não depende de quebra de linha)
     function splitSoapSections(soapText) {
       const sections = { S: "", O: "", A: "", P: "" };
       if (!soapText) return sections;
 
-      const regex = /(^|\n)\s*([SOAP])\s*[:\-]\s*/g;
-      let lastKey = null;
-      let lastIndex = 0;
+      const regex = /\b([SOAP])\s*[:\-]\s*/g;
+      const markers = [];
       let match;
 
       while ((match = regex.exec(soapText)) !== null) {
-        if (lastKey) {
-          sections[lastKey] = soapText.slice(lastIndex, match.index).trim();
-        }
-        lastKey = match[2];
-        lastIndex = regex.lastIndex;
+        const letter = match[1];          // S, O, A ou P
+        const markerIndex = match.index;  // posição do marcador
+        const contentStart = regex.lastIndex; // início do texto após "X:"
+        markers.push({ letter, markerIndex, contentStart });
       }
 
-      if (lastKey) {
-        sections[lastKey] = soapText.slice(lastIndex).trim();
-      } else {
+      if (markers.length === 0) {
         sections.S = soapText.trim();
+        return sections;
+      }
+
+      markers.sort((a, b) => a.markerIndex - b.markerIndex);
+
+      // Qualquer texto antes do primeiro marcador vai para S (caso não comece com S:)
+      if (markers[0].markerIndex > 0) {
+        const prefix = soapText.slice(0, markers[0].markerIndex).trim();
+        if (prefix) {
+          sections.S = prefix;
+        }
+      }
+
+      for (let i = 0; i < markers.length; i++) {
+        const current = markers[i];
+        const next = markers[i + 1];
+        const endIndex = next ? next.markerIndex : soapText.length;
+        const text = soapText.slice(current.contentStart, endIndex).trim();
+
+        if (!text) continue;
+
+        if (!sections[current.letter]) {
+          sections[current.letter] = text;
+        } else {
+          sections[current.letter] += "\n" + text;
+        }
       }
 
       return sections;
+    }
+
+    function extractOrientacoesFromP(pText) {
+      const label = "Tratamento não farmacológico / Orientações:";
+      const idx = pText.indexOf(label);
+      if (idx === -1) return null;
+      const orient = pText.slice(idx + label.length).trim();
+      return orient || null;
     }
 
     function renderSoapWithMissing(soapText) {
@@ -662,6 +693,12 @@
       if (soapO) soapO.innerHTML = renderSection(sections.O);
       if (soapA) soapA.innerHTML = renderSection(sections.A);
       if (soapP) soapP.innerHTML = renderSection(sections.P);
+
+      // Se o P tiver o subbloco de orientações, preenche o campo de orientações automaticamente
+      const orient = sections.P ? extractOrientacoesFromP(sections.P) : null;
+      if (orient && orientacoesOutput) {
+        orientacoesOutput.textContent = orient;
+      }
 
       resultsCard.classList.remove("hidden");
       missingExplainer.style.display = indexCounter > 0 ? "block" : "none";
@@ -760,8 +797,8 @@
         }
 
         const data = await resp.json();
-        const soap = data.soap || "";
-        const prescricao = data.prescricao || "";
+        const soap = typeof data.soap === "string" ? data.soap : "";
+        const prescricao = typeof data.prescricao === "string" ? data.prescricao : "";
 
         currentSoapRaw = soap;
         renderSoapWithMissing(currentSoapRaw);
@@ -769,7 +806,7 @@
         if (prescricao) {
           prescriptionOutput.textContent = prescricao;
           prescricaoPrint.textContent = prescricao;
-          printBtn.style.display = "inline-block";
+          printBtn.style.display = prescricao.trim() ? "inline-block" : "none";
         }
 
         micStatus.innerText =
@@ -901,8 +938,8 @@
         }
 
         const data = await resp.json();
-        const soap = data.soap || "";
-        const prescricao = data.prescricao || "";
+        const soap = typeof data.soap === "string" ? data.soap : "";
+        const prescricao = typeof data.prescricao === "string" ? data.prescricao : "";
 
         currentSoapRaw = soap;
         renderSoapWithMissing(currentSoapRaw);
@@ -910,7 +947,7 @@
         if (prescricao) {
           prescriptionOutput.textContent = prescricao;
           prescricaoPrint.textContent = prescricao;
-          printBtn.style.display = "inline-block";
+          printBtn.style.display = prescricao.trim() ? "inline-block" : "none";
         }
 
         micStatus.innerText =
