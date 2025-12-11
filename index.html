@@ -588,7 +588,7 @@
       const sections = { S: "", O: "", A: "", P: "" };
       if (!soapText) return sections;
 
-      const regex = /(S|O|A|P)\s*:\s*([\s\S]*?)(?=(?:\n\s*[SOAP]\s*:)|$)/gi;
+      const regex = /\b([SOAP])\s*:\s*([\s\S]*?)(?=\b[SOAP]\s*:|$)/g;
       let match;
       while ((match = regex.exec(soapText)) !== null) {
         const key = match[1].toUpperCase();
