@@ -63,6 +63,13 @@
     #recordBtn:active {
       transform: scale(0.97);
     }
+    #startNotice {
+      font-size: 13px;
+      color: #555;
+      text-align: center;
+      margin-top: 8px;
+      margin-bottom: 8px;
+    }
     #timer {
       font-size: 26px;
       margin-top: 16px;
@@ -115,54 +122,6 @@
     .results-card h2 {
       margin-top: 0;
     }
-
-    /* GRID DO SOAP (S, O, A, P) */
-    .soap-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 10px;
-    }
-    .soap-box {
-      border-radius: 8px;
-      border: 1px solid #ddd;
-      background: #fafafa;
-      padding: 8px;
-      display: flex;
-      flex-direction: column;
-    }
-    .soap-label {
-      font-weight: bold;
-      margin-bottom: 4px;
-    }
-    .soap-content {
-      font-size: 14px;
-      min-height: 60px;
-      padding: 6px;
-      border-radius: 4px;
-      border: 1px solid #ddd;
-      background: #ffffff;
-      white-space: pre-wrap;
-    }
-    .soap-content[contenteditable="true"]:focus {
-      outline: 2px solid #0c5460;
-    }
-
-    /* BLOCO EDITÁVEL GENÉRICO (prescrição e orientações) */
-    .editable-block {
-      white-space: pre-wrap;
-      padding: 10px;
-      border-radius: 6px;
-      border: 1px solid #ddd;
-      background: #fafafa;
-      min-height: 80px;
-      font-size: 14px;
-    }
-    .editable-block[contenteditable="true"]:focus {
-      outline: 2px solid #0c5460;
-      background: #ffffff;
-    }
-
     pre {
       white-space: pre-wrap;
       padding: 10px;
@@ -173,7 +132,7 @@
       font-size: 14px;
     }
     #printBtn {
-      margin-top: 12px;
+      margin-top: 0;
       padding: 8px 18px;
       border-radius: 20px;
       border: none;
@@ -214,6 +173,65 @@
       font-size: 12px;
       color: #555;
       margin-top: 8px;
+    }
+
+    /* Cabeçalho SOAP com botões de copiar */
+    .soap-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .soap-copy-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .copy-soap-btn {
+      padding: 4px 8px;
+      border-radius: 12px;
+      border: 1px solid #0c5460;
+      background: #ffffff;
+      color: #0c5460;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .copy-soap-btn:hover {
+      background: #e6f2f5;
+    }
+
+    /* Ações da prescrição */
+    .prescription-actions {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    #copyPrescriptionBtn {
+      padding: 8px 18px;
+      border-radius: 20px;
+      border: 1px solid #0c5460;
+      background: #ffffff;
+      color: #0c5460;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #copyPrescriptionBtn:hover {
+      background: #e6f2f5;
+    }
+    #recommendationsBtn {
+      margin-left: 0;
+      padding: 8px 18px;
+      border-radius: 20px;
+      border: 1px solid #0c5460;
+      background: #ffffff;
+      color: #0c5460;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #recommendationsBtn:hover {
+      background: #e6f2f5;
     }
 
     /* Painel lateral de recomendações de perguntas */
@@ -286,25 +304,20 @@
       color: #666;
       margin-top: 8px;
     }
-    #recommendationsBtn {
-      margin-left: 8px;
-      padding: 8px 18px;
-      border-radius: 20px;
-      border: 1px solid #0c5460;
-      background: #ffffff;
-      color: #0c5460;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    #recommendationsBtn:hover {
-      background: #e6f2f5;
-    }
 
     @media (max-width: 480px) {
       #recordBtn {
         width: 150px;
         height: 150px;
         font-size: 18px;
+      }
+      .soap-header-row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .prescription-actions {
+        flex-direction: column;
+        align-items: flex-start;
       }
     }
 
@@ -334,6 +347,10 @@
     <div class="center-card">
       <button id="recordBtn" class="start">Iniciar consulta</button>
 
+      <p id="startNotice">
+        Assim que iniciar a gravação, informe sempre o nome completo do paciente, idade e peso para que o SOAP e a prescrição sejam gerados corretamente.
+      </p>
+
       <div id="timer">00:00</div>
       <div id="micStatus">Clique em "Iniciar consulta" para começar.</div>
 
@@ -350,51 +367,34 @@
     </div>
 
     <div id="resultsCard" class="results-card hidden">
-      <h2>Resumo SOAP</h2>
-
-      <!-- QUATRO BLOCOS EDITÁVEIS: S, O, A, P -->
-      <div id="soapOutput" class="soap-grid">
-        <div class="soap-box">
-          <div class="soap-label">S</div>
-          <div id="soapS" class="soap-content" contenteditable="true"></div>
-        </div>
-        <div class="soap-box">
-          <div class="soap-label">O</div>
-          <div id="soapO" class="soap-content" contenteditable="true"></div>
-        </div>
-        <div class="soap-box">
-          <div class="soap-label">A</div>
-          <div id="soapA" class="soap-content" contenteditable="true"></div>
-        </div>
-        <div class="soap-box">
-          <div class="soap-label">P</div>
-          <div id="soapP" class="soap-content" contenteditable="true"></div>
+      <div class="soap-header-row">
+        <h2>Resumo SOAP</h2>
+        <div class="soap-copy-group">
+          <button class="copy-soap-btn" data-part="S">S (copiar)</button>
+          <button class="copy-soap-btn" data-part="O">O (copiar)</button>
+          <button class="copy-soap-btn" data-part="A">A (copiar)</button>
+          <button class="copy-soap-btn" data-part="P">P (copiar)</button>
         </div>
       </div>
-
+      <pre id="soapOutput"></pre>
       <div class="missing-explainer" id="missingExplainer" style="display:none;">
         Campos marcados como <strong>não informado</strong> aparecem com um botão.
         Clique nesses botões para perguntar ao paciente e atualizar o resumo automaticamente.
       </div>
 
       <h2>Prescrição</h2>
-      <!-- PRESCRIÇÃO EDITÁVEL -->
-      <div id="prescriptionOutput" class="editable-block" contenteditable="true"></div>
+      <pre id="prescriptionOutput"></pre>
 
-      <h2>Tratamento não farmacológico / Orientações</h2>
-      <!-- ORIENTAÇÕES EDITÁVEIS -->
-      <div id="orientacoesOutput" class="editable-block" contenteditable="true"></div>
-
-      <button id="printBtn">Imprimir prescrição</button>
-      <button id="recommendationsBtn">Recomendações de perguntas</button>
+      <div class="prescription-actions">
+        <button id="copyPrescriptionBtn">Copiar prescrição</button>
+        <button id="printBtn">Imprimir prescrição</button>
+        <button id="recommendationsBtn">Recomendações de perguntas</button>
+      </div>
     </div>
 
-    <!-- ÁREA DE IMPRESSÃO (PDF) -->
     <div id="printArea" class="hidden">
       <h2>Prescrição</h2>
       <pre id="prescricaoPrint"></pre>
-      <h3>Tratamento não farmacológico / Orientações</h3>
-      <pre id="orientacoesPrint"></pre>
     </div>
   </div>
 
@@ -432,22 +432,13 @@
     const pauseBtn = document.getElementById("pauseBtn");
     const timerEl = document.getElementById("timer");
     const micStatus = document.getElementById("micStatus");
-
     const soapOutput = document.getElementById("soapOutput");
-    const soapS = document.getElementById("soapS");
-    const soapO = document.getElementById("soapO");
-    const soapA = document.getElementById("soapA");
-    const soapP = document.getElementById("soapP");
-
     const prescriptionOutput = document.getElementById("prescriptionOutput");
-    const orientacoesOutput = document.getElementById("orientacoesOutput");
-
     const resultsCard = document.getElementById("resultsCard");
     const soapError = document.getElementById("soapError");
     const printBtn = document.getElementById("printBtn");
     const prescricaoPrint = document.getElementById("prescricaoPrint");
     const printArea = document.getElementById("printArea");
-    const orientacoesPrint = document.getElementById("orientacoesPrint");
     const missingExplainer = document.getElementById("missingExplainer");
 
     const recommendationsBtn = document.getElementById("recommendationsBtn");
@@ -456,6 +447,9 @@
     const recommendationsStatus = document.getElementById("recommendationsStatus");
     const recommendationsList = document.getElementById("recommendationsList");
     const askQuestionsBtn = document.getElementById("askQuestionsBtn");
+
+    const soapCopyButtons = document.querySelectorAll(".copy-soap-btn");
+    const copyPrescriptionBtn = document.getElementById("copyPrescriptionBtn");
 
     function initSpeech() {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -576,15 +570,14 @@
         }
 
         const data = await resp.json();
-        const soap = typeof data.soap === "string" ? data.soap : "";
-        const prescricao = typeof data.prescricao === "string" ? data.prescricao : "";
+        const soap = data.soap || "Nenhum texto de SOAP retornado.";
+        const prescricao = data.prescricao || "Nenhum texto de prescrição retornado.";
 
         currentSoapRaw = soap;
         renderSoapWithMissing(currentSoapRaw);
-
         prescriptionOutput.textContent = prescricao;
         prescricaoPrint.textContent = prescricao;
-        printBtn.style.display = prescricao.trim() ? "inline-block" : "none";
+        printBtn.style.display = "inline-block";
 
         micStatus.innerText = "Consulta encerrada. Resumo e prescrição gerados.";
         micStatus.classList.remove("loading-dot");
@@ -604,104 +597,32 @@
         .replace(/>/g, "&gt;");
     }
 
-    // NOVA LÓGICA: encontra S:, O:, A:, P: em qualquer lugar da string (não depende de quebra de linha)
-    function splitSoapSections(soapText) {
-      const sections = { S: "", O: "", A: "", P: "" };
-      if (!soapText) return sections;
-
-      const regex = /\b([SOAP])\s*[:\-]\s*/g;
-      const markers = [];
-      let match;
-
-      while ((match = regex.exec(soapText)) !== null) {
-        const letter = match[1];          // S, O, A ou P
-        const markerIndex = match.index;  // posição do marcador
-        const contentStart = regex.lastIndex; // início do texto após "X:"
-        markers.push({ letter, markerIndex, contentStart });
-      }
-
-      if (markers.length === 0) {
-        sections.S = soapText.trim();
-        return sections;
-      }
-
-      markers.sort((a, b) => a.markerIndex - b.markerIndex);
-
-      // Qualquer texto antes do primeiro marcador vai para S (caso não comece com S:)
-      if (markers[0].markerIndex > 0) {
-        const prefix = soapText.slice(0, markers[0].markerIndex).trim();
-        if (prefix) {
-          sections.S = prefix;
-        }
-      }
-
-      for (let i = 0; i < markers.length; i++) {
-        const current = markers[i];
-        const next = markers[i + 1];
-        const endIndex = next ? next.markerIndex : soapText.length;
-        const text = soapText.slice(current.contentStart, endIndex).trim();
-
-        if (!text) continue;
-
-        if (!sections[current.letter]) {
-          sections[current.letter] = text;
-        } else {
-          sections[current.letter] += "\n" + text;
-        }
-      }
-
-      return sections;
-    }
-
-    function extractOrientacoesFromP(pText) {
-      const label = "Tratamento não farmacológico / Orientações:";
-      const idx = pText.indexOf(label);
-      if (idx === -1) return null;
-      const orient = pText.slice(idx + label.length).trim();
-      return orient || null;
-    }
-
     function renderSoapWithMissing(soapText) {
-      const sections = splitSoapSections(soapText || "");
-
-      if (!sections.S && !sections.O && !sections.A && !sections.P) {
-        if (soapS) soapS.textContent = "";
-        if (soapO) soapO.textContent = "";
-        if (soapA) soapA.textContent = "";
-        if (soapP) soapP.textContent = "";
+      if (!soapText) {
+        soapOutput.textContent = "";
         missingExplainer.style.display = "none";
         return;
       }
 
       let indexCounter = 0;
+      const replaced = soapText.replace(/não informado/gi, (match) => {
+        indexCounter++;
+        const contextSnippet = "campo " + indexCounter;
+        return (
+          '<button class="missing-btn" data-context="' +
+          escapeHtml(contextSnippet) +
+          '">não informado</button>'
+        );
+      });
 
-      function renderSection(text) {
-        if (!text) return "";
-        const escaped = escapeHtml(text);
-        return escaped.replace(/não informado/gi, () => {
-          indexCounter++;
-          const contextSnippet = "campo " + indexCounter;
-          return (
-            '<button class="missing-btn" data-context="' +
-            escapeHtml(contextSnippet) +
-            '">não informado</button>'
-          );
-        });
-      }
-
-      if (soapS) soapS.innerHTML = renderSection(sections.S);
-      if (soapO) soapO.innerHTML = renderSection(sections.O);
-      if (soapA) soapA.innerHTML = renderSection(sections.A);
-      if (soapP) soapP.innerHTML = renderSection(sections.P);
-
-      // Se o P tiver o subbloco de orientações, preenche o campo de orientações automaticamente
-      const orient = sections.P ? extractOrientacoesFromP(sections.P) : null;
-      if (orient && orientacoesOutput) {
-        orientacoesOutput.textContent = orient;
-      }
-
+      soapOutput.innerHTML = replaced;
       resultsCard.classList.remove("hidden");
-      missingExplainer.style.display = indexCounter > 0 ? "block" : "none";
+
+      if (indexCounter > 0) {
+        missingExplainer.style.display = "block";
+      } else {
+        missingExplainer.style.display = "none";
+      }
     }
 
     function captureAdditionalInfo() {
@@ -797,8 +718,8 @@
         }
 
         const data = await resp.json();
-        const soap = typeof data.soap === "string" ? data.soap : "";
-        const prescricao = typeof data.prescricao === "string" ? data.prescricao : "";
+        const soap = data.soap || "";
+        const prescricao = data.prescricao || "";
 
         currentSoapRaw = soap;
         renderSoapWithMissing(currentSoapRaw);
@@ -806,7 +727,7 @@
         if (prescricao) {
           prescriptionOutput.textContent = prescricao;
           prescricaoPrint.textContent = prescricao;
-          printBtn.style.display = prescricao.trim() ? "inline-block" : "none";
+          printBtn.style.display = "inline-block";
         }
 
         micStatus.innerText =
@@ -938,8 +859,8 @@
         }
 
         const data = await resp.json();
-        const soap = typeof data.soap === "string" ? data.soap : "";
-        const prescricao = typeof data.prescricao === "string" ? data.prescricao : "";
+        const soap = data.soap || "";
+        const prescricao = data.prescricao || "";
 
         currentSoapRaw = soap;
         renderSoapWithMissing(currentSoapRaw);
@@ -947,7 +868,7 @@
         if (prescricao) {
           prescriptionOutput.textContent = prescricao;
           prescricaoPrint.textContent = prescricao;
-          printBtn.style.display = prescricao.trim() ? "inline-block" : "none";
+          printBtn.style.display = "inline-block";
         }
 
         micStatus.innerText =
@@ -981,17 +902,9 @@
       baseTranscript = "";
       resultsCard.classList.add("hidden");
       printBtn.style.display = "none";
-
       prescriptionOutput.textContent = "";
       prescricaoPrint.textContent = "";
-      orientacoesOutput.textContent = "";
-      orientacoesPrint.textContent = "";
-
-      if (soapS) soapS.textContent = "";
-      if (soapO) soapO.textContent = "";
-      if (soapA) soapA.textContent = "";
-      if (soapP) soapP.textContent = "";
-
+      soapOutput.textContent = "";
       missingExplainer.style.display = "none";
 
       pauseBtn.style.display = "inline-block";
@@ -1058,6 +971,36 @@
       micStatus.innerText = "Gravando consulta...";
     }
 
+    function copyToClipboard(text) {
+      if (!text) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(() => {
+          alert("Não foi possível copiar o texto.");
+        });
+      } else {
+        // Fallback simples
+        const temp = document.createElement("textarea");
+        temp.value = text;
+        document.body.appendChild(temp);
+        temp.select();
+        try {
+          document.execCommand("copy");
+        } catch (e) {
+          alert("Não foi possível copiar o texto.");
+        }
+        document.body.removeChild(temp);
+      }
+    }
+
+    function getSoapSectionText(letter) {
+      const soapText = currentSoapRaw || soapOutput.textContent || "";
+      if (!soapText) return "";
+      const regex = new RegExp("(^|\\n)\\s*" + letter + "\\s*:\\s*([\\s\\S]*?)(?=\\n\\s*[SOAP]\\s*:|$)", "i");
+      const match = soapText.match(regex);
+      if (!match) return "";
+      return letter.toUpperCase() + ": " + match[2].trim();
+    }
+
     recordBtn.onclick = () => {
       if (!isRecording) {
         startRecording();
@@ -1077,17 +1020,11 @@
     };
 
     printBtn.onclick = () => {
-      const prescText = (prescriptionOutput.textContent || "").trim();
-      const orientText = (orientacoesOutput.textContent || "").trim();
-
-      if (!prescText) {
+      if (!prescriptionOutput.textContent.trim()) {
         alert("Não há prescrição para imprimir.");
         return;
       }
-
-      prescricaoPrint.textContent = prescText;
-      orientacoesPrint.textContent = orientText;
-
+      prescricaoPrint.textContent = prescriptionOutput.textContent;
       printArea.classList.remove("hidden");
       window.print();
       setTimeout(() => {
@@ -1113,6 +1050,27 @@
         const context = target.getAttribute("data-context") || "";
         handleMissingClick(context);
       }
+    });
+
+    soapCopyButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const part = btn.getAttribute("data-part");
+        const sectionText = getSoapSectionText(part);
+        if (!sectionText) {
+          alert("Seção " + part + " não encontrada no SOAP.");
+          return;
+        }
+        copyToClipboard(sectionText);
+      });
+    });
+
+    copyPrescriptionBtn.addEventListener("click", () => {
+      const text = prescriptionOutput.textContent.trim();
+      if (!text) {
+        alert("Não há prescrição para copiar.");
+        return;
+      }
+      copyToClipboard(text);
     });
   </script>
 </body>
