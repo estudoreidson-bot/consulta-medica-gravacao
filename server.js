@@ -37,8 +37,45 @@ async function callOpenAI(prompt) {
   return content.trim();
 }
 
+// Função para obter JSON do modelo com fallback (extrai o primeiro bloco {...})
+async function callOpenAIJson(prompt) {
+  const raw = await callOpenAI(prompt);
+
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    const firstBrace = raw.indexOf("{");
+    const lastBrace = raw.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      const jsonSlice = raw.slice(firstBrace, lastBrace + 1);
+      return JSON.parse(jsonSlice);
+    }
+    throw new Error("Resposta do modelo não pôde ser convertida em JSON.");
+  }
+}
+
+// Pequena validação para limitar tamanho e evitar abusos
+function normalizeText(input, maxLen) {
+  const s = (typeof input === "string" ? input : "").trim();
+  if (!s) return "";
+  return s.length > maxLen ? s.slice(0, maxLen) : s;
+}
+
+function normalizeArrayOfStrings(arr, maxItems, maxLenEach) {
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const v of arr) {
+    if (typeof v !== "string") continue;
+    const t = v.trim();
+    if (!t) continue;
+    out.push(t.length > maxLenEach ? t.slice(0, maxLenEach) : t);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
 // ======================================================================
-// ROTA 1 – GERAR SOAP E PRESCRIÇÃO A PARTIR DA TRANSCRIÇÃO
+// ROTA 1 – GERAR SOAP E PRESCRIÇÃO A PARTIR DA TRANSCRIÇÃO (EXISTENTE)
 // ======================================================================
 
 app.post("/api/gerar-soap", async (req, res) => {
@@ -50,6 +87,8 @@ app.post("/api/gerar-soap", async (req, res) => {
         error: "O campo 'transcricao' é obrigatório.",
       });
     }
+
+    const safeTranscricao = normalizeText(transcricao, 25000);
 
     const prompt = `
 Você é um médico humano recebendo a transcrição integral de uma consulta em português do Brasil.  
@@ -108,24 +147,10 @@ OUTRAS REGRAS GERAIS:
 - A saída deve ser apenas o JSON, nada antes ou depois.
 
 TRANSCRIÇÃO DA CONSULTA:
-"""${transcricao}"""
+"""${safeTranscricao}"""
 `;
 
-    const raw = await callOpenAI(prompt);
-
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch (e) {
-      const firstBrace = raw.indexOf("{");
-      const lastBrace = raw.lastIndexOf("}");
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        const jsonSlice = raw.slice(firstBrace, lastBrace + 1);
-        data = JSON.parse(jsonSlice);
-      } else {
-        throw new Error("Resposta do modelo não pôde ser convertida em JSON.");
-      }
-    }
+    const data = await callOpenAIJson(prompt);
 
     const soap = data.soap || "";
     const prescricao = data.prescricao || "";
@@ -140,7 +165,7 @@ TRANSCRIÇÃO DA CONSULTA:
 });
 
 // ======================================================================
-// ROTA 2 – RECOMENDAÇÕES DE PERGUNTAS COMPLEMENTARES (ANAMNESE)
+// ROTA 2 – RECOMENDAÇÕES DE PERGUNTAS COMPLEMENTARES (ANAMNESE) (EXISTENTE)
 // ======================================================================
 
 app.post("/api/recomendacoes-anamnese", async (req, res) => {
@@ -156,6 +181,10 @@ app.post("/api/recomendacoes-anamnese", async (req, res) => {
         error: "O campo 'soap' é obrigatório para gerar as recomendações.",
       });
     }
+
+    const safeSoap = normalizeText(soap, 20000);
+    const safeQueixa = normalizeText(queixa_principal, 2000);
+    const safeHistorico = normalizeText(historico_resumido, 4000);
 
     const prompt = `
 Seu único usuário é sempre o MÉDICO HUMANO que está atendendo o paciente.
@@ -214,28 +243,13 @@ IMPORTANTE
 - O leitor da sua resposta é o MÉDICO HUMANO, mas as perguntas devem ser formuladas para ele fazer diretamente ao paciente.
 
 DADOS RECEBIDOS DO SISTEMA
-Queixa principal: ${queixa_principal}
-Histórico resumido: ${historico_resumido}
+Queixa principal: ${safeQueixa}
+Histórico resumido: ${safeHistorico}
 SOAP atual:
-${soap}
+${safeSoap}
 `;
 
-    const raw = await callOpenAI(prompt);
-
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch (e) {
-      const firstBrace = raw.indexOf("{");
-      const lastBrace = raw.lastIndexOf("}");
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        const jsonSlice = raw.slice(firstBrace, lastBrace + 1);
-        data = JSON.parse(jsonSlice);
-      } else {
-        throw new Error("Resposta do modelo não pôde ser convertida em JSON.");
-      }
-    }
-
+    const data = await callOpenAIJson(prompt);
     const perguntas = Array.isArray(data.perguntas) ? data.perguntas : [];
 
     return res.json({ perguntas });
@@ -243,6 +257,164 @@ ${soap}
     console.error("Erro em /api/recomendacoes-anamnese:", err);
     return res.status(500).json({
       error: "Erro interno ao gerar recomendações de anamnese.",
+    });
+  }
+});
+
+// ======================================================================
+// ROTA 3 – GERAR PRESCRIÇÃO HOSPITALAR A PARTIR DA TRANSCRIÇÃO (NOVA)
+// ======================================================================
+
+app.post("/api/prescricao-hospitalar", async (req, res) => {
+  try {
+    const { transcricao } = req.body || {};
+
+    if (!transcricao || !transcricao.trim()) {
+      return res.status(400).json({
+        error: "O campo 'transcricao' é obrigatório.",
+      });
+    }
+
+    const safeTranscricao = normalizeText(transcricao, 25000);
+
+    const prompt = `
+Você é um médico humano redigindo uma prescrição hospitalar em português do Brasil, para uso real em enfermaria ou UTI.
+Seu único usuário é o MÉDICO HUMANO que está atendendo o paciente.
+
+TAREFA
+A partir da transcrição abaixo, gere obrigatoriamente um JSON exatamente no formato:
+
+{
+  "prescricao_hospitalar": "Texto final pronto para impressão e inserção em prontuário."
+}
+
+REGRAS
+- Não invente dados ausentes. Se nome/idade/peso não estiverem claramente informados, use "não informado".
+- Linguagem médica formal, sem emojis, sem ícones, sem linguagem informal.
+- Organize a prescrição com as seções abaixo, nesta ordem, com títulos claros:
+
+Paciente: [nome completo ou não informado]
+Idade: [X anos ou não informado]    Peso: [Y kg ou não informado]
+
+Medicamentos contínuos:
+- [Medicamento] — Dose: [ ] | Via: [ ] | Frequência: [ ] | Observações: [ ]
+
+Medicamentos se necessário:
+- [Medicamento] — Dose: [ ] | Via: [ ] | Frequência: [ ] | Observações: [ ]
+
+Dieta:
+- [Item] — Dose: [ ] | Via: [ ] | Frequência: [ ] | Observações: [ ]
+(Se não aplicável, escreva: "Não informado.")
+
+Hidratação:
+- [Item] — Dose: [ ] | Via: [ ] | Frequência: [ ] | Observações: [ ]
+(Se não aplicável, escreva: "Não informado.")
+
+Cuidados de enfermagem:
+- [Item] — Dose: [ ] | Via: [ ] | Frequência: [ ] | Observações: [ ]
+(Se não aplicável, escreva: "Não informado.")
+
+Assinatura:
+____________________________________
+Médico
+
+IMPORTANTE
+- Não explique o que está fazendo.
+- NÃO se apresente como IA, modelo de linguagem, algoritmo, chatbot ou similares.
+- A saída deve ser apenas o JSON, nada antes ou depois.
+- Se a transcrição não tiver dados suficientes para inferir algum item com segurança, prefira "Não informado" em vez de inventar.
+
+TRANSCRIÇÃO:
+"""${safeTranscricao}"""
+`;
+
+    const data = await callOpenAIJson(prompt);
+    const prescricao_hospitalar = data.prescricao_hospitalar || "";
+
+    return res.json({ prescricao_hospitalar });
+  } catch (err) {
+    console.error("Erro em /api/prescricao-hospitalar:", err);
+    return res.status(500).json({
+      error: "Erro interno ao gerar prescrição hospitalar.",
+    });
+  }
+});
+
+// ======================================================================
+// ROTA 4 – CLASSIFICAR MEDICAMENTOS EM GESTAÇÃO E LACTAÇÃO (NOVA)
+// ======================================================================
+
+app.post("/api/classificar-gestacao-lactacao", async (req, res) => {
+  try {
+    const { medicamentos } = req.body || {};
+    const meds = normalizeArrayOfStrings(medicamentos, 60, 120);
+
+    if (!meds.length) {
+      return res.json({
+        gestacao: [],
+        lactacao: [],
+      });
+    }
+
+    const prompt = `
+Você é um médico humano classificando medicamentos quanto ao uso na gestação e na lactação.
+Seu único usuário é o MÉDICO HUMANO que está atendendo o paciente.
+
+TAREFA
+Receberá uma lista de medicamentos (nomes conforme prescritos). Para cada medicamento, devolva a classificação:
+- Gestação: A, B, C, D, E, ou NA
+- Lactação: A, B, C, D, E, ou NA
+
+REGRAS IMPORTANTES
+- Use apenas as categorias solicitadas: A, B, C, D, E ou NA.
+- Se não for possível determinar com segurança, use NA e a descrição "categoria não informada (dados insuficientes)".
+- A descrição deve ser curta e exatamente no padrão:
+  - A: "uso sem risco"
+  - B: "uso sem risco aparente"
+  - C: "uso com risco/avaliar risco-benefício"
+  - D: "uso com risco; evitar se possível"
+  - E: "contraindicado/alto risco"
+  - NA: "categoria não informada (dados insuficientes)"
+- Não invente indicações, doses ou detalhes clínicos.
+- Não se apresente como IA, modelo, algoritmo ou similares.
+- Responda apenas com JSON válido no formato abaixo, sem texto extra.
+
+FORMATO DE SAÍDA (JSON)
+{
+  "gestacao": [
+    { "medicamento": "nome", "categoria": "A|B|C|D|E|NA", "descricao": "texto" }
+  ],
+  "lactacao": [
+    { "medicamento": "nome", "categoria": "A|B|C|D|E|NA", "descricao": "texto" }
+  ]
+}
+
+LISTA DE MEDICAMENTOS:
+${meds.map((m, i) => `${i + 1}. ${m}`).join("\n")}
+`;
+
+    const data = await callOpenAIJson(prompt);
+
+    const gestacao = Array.isArray(data.gestacao) ? data.gestacao : [];
+    const lactacao = Array.isArray(data.lactacao) ? data.lactacao : [];
+
+    // Normalização defensiva do retorno
+    const normalizeItem = (it) => {
+      const med = normalizeText(it?.medicamento, 120) || "não informado";
+      const cat = normalizeText(it?.categoria, 2).toUpperCase();
+      const ok = ["A", "B", "C", "D", "E", "NA"].includes(cat) ? cat : "NA";
+      const desc = normalizeText(it?.descricao, 80) || "categoria não informada (dados insuficientes)";
+      return { medicamento: med, categoria: ok, descricao: desc };
+    };
+
+    return res.json({
+      gestacao: gestacao.map(normalizeItem),
+      lactacao: lactacao.map(normalizeItem),
+    });
+  } catch (err) {
+    console.error("Erro em /api/classificar-gestacao-lactacao:", err);
+    return res.status(500).json({
+      error: "Erro interno ao classificar medicamentos.",
     });
   }
 });
