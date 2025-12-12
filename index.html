@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -199,7 +200,13 @@
       flex-wrap: wrap;
       gap: 8px;
     }
-    #copyPrescriptionBtn {
+    #copyPrescriptionBtn,
+    #copyHospitalPrescriptionBtn,
+    #printHospitalPrescriptionBtn,
+    #generateHospitalPrescriptionBtn,
+    #updateClassificationsBtn,
+    #printPregnancyBtn,
+    #printLactationBtn {
       padding: 8px 18px;
       border-radius: 20px;
       border: 1px solid #0c5460;
@@ -208,9 +215,16 @@
       font-size: 14px;
       cursor: pointer;
     }
-    #copyPrescriptionBtn:hover {
+    #copyPrescriptionBtn:hover,
+    #copyHospitalPrescriptionBtn:hover,
+    #printHospitalPrescriptionBtn:hover,
+    #generateHospitalPrescriptionBtn:hover,
+    #updateClassificationsBtn:hover,
+    #printPregnancyBtn:hover,
+    #printLactationBtn:hover {
       background: #e6f2f5;
     }
+
     #printBtn {
       margin-top: 0;
       padding: 8px 18px;
@@ -222,6 +236,7 @@
       font-size: 14px;
       display: none;
     }
+
     #recommendationsBtn {
       margin-left: 0;
       padding: 8px 18px;
@@ -304,6 +319,24 @@
       font-size: 11px;
       color: #666;
       margin-top: 8px;
+    }
+
+    .mini-status {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #555;
+      min-height: 16px;
+    }
+
+    .classification-box {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px;
+      background: #fafafa;
+      white-space: pre-wrap;
+      font-size: 14px;
+      line-height: 1.35;
+      min-height: 48px;
     }
 
     @media (max-width: 480px) {
@@ -392,6 +425,31 @@
         <button id="printBtn">Imprimir prescrição</button>
         <button id="recommendationsBtn">Recomendações de perguntas</button>
       </div>
+
+      <h2>Prescrição Hospitalar</h2>
+      <textarea id="hospitalPrescriptionOutput" class="prescription-textarea"></textarea>
+
+      <div class="prescription-actions">
+        <button id="generateHospitalPrescriptionBtn">Gerar prescrição hospitalar</button>
+        <button id="copyHospitalPrescriptionBtn">Copiar prescrição hospitalar</button>
+        <button id="printHospitalPrescriptionBtn">Imprimir prescrição hospitalar</button>
+      </div>
+      <div id="hospitalPrescriptionStatus" class="mini-status"></div>
+
+      <h2>Uso na gravidez</h2>
+      <div id="pregnancyBox" class="classification-box">Nenhuma prescrição disponível para classificar.</div>
+      <div class="prescription-actions">
+        <button id="updateClassificationsBtn">Atualizar classificação</button>
+        <button id="printPregnancyBtn">Imprimir uso na gravidez</button>
+      </div>
+
+      <h2>Uso na lactação</h2>
+      <div id="lactationBox" class="classification-box">Nenhuma prescrição disponível para classificar.</div>
+      <div class="prescription-actions">
+        <button id="printLactationBtn">Imprimir uso na lactação</button>
+      </div>
+
+      <div id="classificationsStatus" class="mini-status"></div>
     </div>
   </div>
 
@@ -439,6 +497,19 @@
 
     const prescriptionOutput = document.getElementById("prescriptionOutput");
 
+    const hospitalPrescriptionOutput = document.getElementById("hospitalPrescriptionOutput");
+    const generateHospitalPrescriptionBtn = document.getElementById("generateHospitalPrescriptionBtn");
+    const copyHospitalPrescriptionBtn = document.getElementById("copyHospitalPrescriptionBtn");
+    const printHospitalPrescriptionBtn = document.getElementById("printHospitalPrescriptionBtn");
+    const hospitalPrescriptionStatus = document.getElementById("hospitalPrescriptionStatus");
+
+    const pregnancyBox = document.getElementById("pregnancyBox");
+    const lactationBox = document.getElementById("lactationBox");
+    const updateClassificationsBtn = document.getElementById("updateClassificationsBtn");
+    const classificationsStatus = document.getElementById("classificationsStatus");
+    const printPregnancyBtn = document.getElementById("printPregnancyBtn");
+    const printLactationBtn = document.getElementById("printLactationBtn");
+
     const recommendationsBtn = document.getElementById("recommendationsBtn");
     const recommendationsPanel = document.getElementById("recommendationsPanel");
     const closeRecommendationsBtn = document.getElementById("closeRecommendationsBtn");
@@ -448,6 +519,13 @@
 
     const soapCopyButtons = document.querySelectorAll(".copy-soap-btn");
     const copyPrescriptionBtn = document.getElementById("copyPrescriptionBtn");
+
+    function escapeHtml(text) {
+      return String(text || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
 
     function initSpeech() {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -522,6 +600,14 @@
       timerEl.innerText = "00:00";
     }
 
+    function resetNewModulesUI() {
+      hospitalPrescriptionOutput.value = "";
+      hospitalPrescriptionStatus.textContent = "";
+      classificationsStatus.textContent = "";
+      pregnancyBox.textContent = "Nenhuma prescrição disponível para classificar.";
+      lactationBox.textContent = "Nenhuma prescrição disponível para classificar.";
+    }
+
     async function finalizarConsulta() {
       soapError.textContent = "";
       micStatus.innerText = "Gerando resumo SOAP e prescrição com base na gravação...";
@@ -575,6 +661,9 @@
 
         micStatus.innerText = "Consulta encerrada. Resumo e prescrição gerados.";
         micStatus.classList.remove("loading-dot");
+
+        // Atualiza classificações com base na prescrição ambulatorial gerada
+        await updateClassifications();
       } catch (e) {
         console.error(e);
         soapError.textContent =
@@ -804,6 +893,8 @@
         micStatus.innerText =
           "Resumo SOAP atualizado com as respostas das perguntas essenciais.";
         micStatus.classList.remove("loading-dot");
+
+        await updateClassifications();
       } catch (err) {
         console.error(
           "Erro geral ao atualizar SOAP com perguntas essenciais:",
@@ -837,6 +928,7 @@
       soapO.value = "";
       soapA.value = "";
       soapP.value = "";
+      resetNewModulesUI();
 
       pauseBtn.style.display = "inline-block";
       pauseBtn.innerText = "Pausar";
@@ -937,6 +1029,211 @@
       }
     }
 
+    function openPrintWindow(title, text) {
+      const content = (text || "").trim();
+      if (!content) {
+        alert("Não há conteúdo para imprimir.");
+        return;
+      }
+
+      const w = window.open("", "_blank", "width=800,height=600");
+      if (!w) {
+        alert("Não foi possível abrir a janela de impressão.");
+        return;
+      }
+
+      w.document.write("<html><head><title>" + escapeHtml(title) + "</title></head><body>");
+      w.document.write("<pre style='font-family: Arial, sans-serif; white-space: pre-wrap;'>" +
+        escapeHtml(content) +
+        "</pre>");
+      w.document.write("</body></html>");
+      w.document.close();
+      w.focus();
+      w.print();
+    }
+
+    function extractMedicationsFromPrescriptionText(text) {
+      const raw = String(text || "").replace(/\r/g, "").trim();
+      if (!raw) return [];
+
+      const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
+
+      const ignorePrefixes = [
+        "paciente:",
+        "idade:",
+        "peso:",
+        "orientações:",
+        "orientacoes:",
+        "assinatura:",
+        "médico",
+        "medico",
+        "medicamentos contínuos:",
+        "medicamentos continuos:",
+        "medicamentos se necessário:",
+        "medicamentos se necessario:",
+        "dieta:",
+        "hidratação:",
+        "hidratacao:",
+        "cuidados de enfermagem:"
+      ];
+
+      const meds = [];
+
+      for (const line of lines) {
+        const low = line.toLowerCase();
+        if (ignorePrefixes.some(p => low.startsWith(p))) continue;
+
+        // Caso ambulatorial: "1. Dipirona – 500 mg..."
+        let m = line.match(/^\s*\d+\s*[\.\)]\s*([^\n–-]+?)\s*(?:[–-]|$)/);
+        if (m && m[1]) {
+          const name = m[1].trim();
+          if (name && name.length >= 2) meds.push(name);
+          continue;
+        }
+
+        // Caso hospitalar: "- Ceftriaxona — Dose: ..."
+        m = line.match(/^\s*[-•]\s*([^\n—–-]+?)\s*(?:[—–-]|$)/);
+        if (m && m[1]) {
+          const name = m[1].trim();
+          if (name && name.length >= 2 && !/^(não informado)$/i.test(name)) meds.push(name);
+          continue;
+        }
+      }
+
+      // Deduplicar preservando ordem
+      const seen = new Set();
+      const unique = [];
+      for (const x of meds) {
+        const key = x.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push(x);
+      }
+
+      return unique.slice(0, 60);
+    }
+
+    function getAllPrescribedMedications() {
+      const amb = prescriptionOutput.value || "";
+      const hosp = hospitalPrescriptionOutput.value || "";
+      const meds = [
+        ...extractMedicationsFromPrescriptionText(amb),
+        ...extractMedicationsFromPrescriptionText(hosp)
+      ];
+
+      const seen = new Set();
+      const unique = [];
+      for (const x of meds) {
+        const key = x.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push(x);
+      }
+      return unique.slice(0, 60);
+    }
+
+    async function generateHospitalPrescription() {
+      hospitalPrescriptionStatus.textContent = "";
+      const transcricao = (baseTranscript || finalTranscript || "").trim();
+
+      if (!transcricao) {
+        hospitalPrescriptionStatus.textContent = "Não há transcrição disponível para gerar a prescrição hospitalar.";
+        return;
+      }
+
+      hospitalPrescriptionStatus.textContent = "Gerando prescrição hospitalar...";
+      hospitalPrescriptionStatus.classList.add("loading-dot");
+
+      try {
+        const resp = await fetch(BACKEND_URL + "/api/prescricao-hospitalar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcricao })
+        });
+
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => "");
+          console.error("Erro HTTP do backend (prescrição hospitalar):", resp.status, txt);
+          hospitalPrescriptionStatus.textContent = "Não foi possível gerar a prescrição hospitalar.";
+          hospitalPrescriptionStatus.classList.remove("loading-dot");
+          return;
+        }
+
+        const data = await resp.json();
+        const presc = data.prescricao_hospitalar || "";
+
+        hospitalPrescriptionOutput.value = presc;
+        hospitalPrescriptionStatus.textContent = presc ? "Prescrição hospitalar gerada." : "Não foi possível gerar a prescrição hospitalar.";
+        hospitalPrescriptionStatus.classList.remove("loading-dot");
+
+        await updateClassifications();
+      } catch (err) {
+        console.error("Erro ao gerar prescrição hospitalar:", err);
+        hospitalPrescriptionStatus.textContent = "Erro ao gerar prescrição hospitalar.";
+        hospitalPrescriptionStatus.classList.remove("loading-dot");
+      }
+    }
+
+    function formatClassificationList(items) {
+      if (!Array.isArray(items) || !items.length) {
+        return "Nenhuma prescrição disponível para classificar.";
+      }
+      const lines = [];
+      for (const it of items) {
+        const med = (it && it.medicamento) ? String(it.medicamento) : "não informado";
+        const cat = (it && it.categoria) ? String(it.categoria) : "NA";
+        const desc = (it && it.descricao) ? String(it.descricao) : "categoria não informada (dados insuficientes)";
+        if (cat === "NA") {
+          lines.push(med + ": categoria não informada (dados insuficientes)");
+        } else {
+          lines.push(med + ": " + cat + " (" + desc + ")");
+        }
+      }
+      return lines.join("\n");
+    }
+
+    async function updateClassifications() {
+      classificationsStatus.textContent = "";
+
+      const meds = getAllPrescribedMedications();
+      if (!meds.length) {
+        pregnancyBox.textContent = "Nenhuma prescrição disponível para classificar.";
+        lactationBox.textContent = "Nenhuma prescrição disponível para classificar.";
+        return;
+      }
+
+      classificationsStatus.textContent = "Classificando medicamentos em gestação e lactação...";
+      classificationsStatus.classList.add("loading-dot");
+
+      try {
+        const resp = await fetch(BACKEND_URL + "/api/classificar-gestacao-lactacao", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ medicamentos: meds })
+        });
+
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => "");
+          console.error("Erro HTTP do backend (classificação):", resp.status, txt);
+          classificationsStatus.textContent = "Não foi possível classificar os medicamentos.";
+          classificationsStatus.classList.remove("loading-dot");
+          return;
+        }
+
+        const data = await resp.json();
+
+        pregnancyBox.textContent = formatClassificationList(data.gestacao);
+        lactationBox.textContent = formatClassificationList(data.lactacao);
+
+        classificationsStatus.textContent = "Classificação atualizada.";
+        classificationsStatus.classList.remove("loading-dot");
+      } catch (err) {
+        console.error("Erro ao classificar medicamentos:", err);
+        classificationsStatus.textContent = "Erro ao classificar os medicamentos.";
+        classificationsStatus.classList.remove("loading-dot");
+      }
+    }
+
     recordBtn.onclick = () => {
       if (!isRecording) {
         startRecording();
@@ -956,26 +1253,7 @@
     };
 
     printBtn.onclick = () => {
-      const text = prescriptionOutput.value.trim();
-      if (!text) {
-        alert("Não há prescrição para imprimir.");
-        return;
-      }
-
-      const printWindow = window.open("", "_blank", "width=800,height=600");
-      if (!printWindow) {
-        alert("Não foi possível abrir a janela de impressão.");
-        return;
-      }
-
-      printWindow.document.write("<html><head><title>Prescrição</title></head><body>");
-      printWindow.document.write("<pre style='font-family: Arial, sans-serif; white-space: pre-wrap;'>" +
-        text.replace(/</g, "&lt;").replace(/>/g, "&gt;") +
-        "</pre>");
-      printWindow.document.write("</body></html>");
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
+      openPrintWindow("Prescrição", prescriptionOutput.value);
     };
 
     recommendationsBtn.addEventListener("click", () => {
@@ -1009,6 +1287,35 @@
         return;
       }
       copyToClipboard(text);
+    });
+
+    generateHospitalPrescriptionBtn.addEventListener("click", () => {
+      generateHospitalPrescription();
+    });
+
+    copyHospitalPrescriptionBtn.addEventListener("click", () => {
+      const text = hospitalPrescriptionOutput.value.trim();
+      if (!text) {
+        alert("Não há prescrição hospitalar para copiar.");
+        return;
+      }
+      copyToClipboard(text);
+    });
+
+    printHospitalPrescriptionBtn.addEventListener("click", () => {
+      openPrintWindow("Prescrição Hospitalar", hospitalPrescriptionOutput.value);
+    });
+
+    updateClassificationsBtn.addEventListener("click", () => {
+      updateClassifications();
+    });
+
+    printPregnancyBtn.addEventListener("click", () => {
+      openPrintWindow("Uso na gravidez", pregnancyBox.textContent);
+    });
+
+    printLactationBtn.addEventListener("click", () => {
+      openPrintWindow("Uso na lactação", lactationBox.textContent);
     });
   </script>
 </body>
